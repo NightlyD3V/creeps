@@ -1,0 +1,11 @@
+@font-face { font-family: RavenScream; src: url('./assets/fonts/raven-scream/RavenScream.ttf')}
+
+:root {
+    --steel-blue: #AFB5D2;
+    --steel-white: #B9CBE2;
+    --dark-blue: #060A16;
+}
+
+body {
+    background-color: var(--dark-blue);
+}
