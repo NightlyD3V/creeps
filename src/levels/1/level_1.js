@@ -1,20 +1,26 @@
 import * as THREE from 'three'
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-// import basicVertexShader from './shaders/vertex.glsl?raw'; // The ?raw import is crucial
-// import basicFragmentShader from './shaders/fragment.glsl?raw';
+import FirstPersonController from '../../classes/FirstPersonController';
+import { deltaTime } from 'three/tsl';
 
+const rain_sound = document.getElementById('rain-sound');
+
+// THREEJS
 // INIT
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 const renderer = new THREE.WebGLRenderer();
+renderer.shadowMap.enabled = true;
+const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+const player = new THREE.Object3D();
+scene.add(player);
+player.add(camera); // Add the camera as a child of the player
+camera.position.set(0, 1.6, 0); // Adjust camera height (eye level)
+camera.rotation.order = 'YXZ'; // Important for correct rotation order
+const controller = new FirstPersonController(camera, renderer.domElement); // Pass the camera and renderer's DOM element
 camera.position.z = 50;
 renderer.setSize( window.innerWidth, window.innerHeight );
 document.body.appendChild( renderer.domElement );
 
-// CONTROLS
-const controls = new OrbitControls( camera, renderer.domElement );
-controls.enableDamping = true
-controls.dampingFactor = 0.01
+rain_sound.play()
 
 // Lights - 3-Point Lighting Setup
 
@@ -33,6 +39,19 @@ const backLight = new THREE.DirectionalLight(0xffffff, 0.2); // White, 20% inten
 backLight.position.set(0, 3, -5); // Behind the sphere
 scene.add(backLight);
 
+// Add shadows to the lights:
+keyLight.castShadow = true;
+fillLight.castShadow = true;
+backLight.castShadow = true;
+
+// Ground Plane
+const groundGeometry = new THREE.PlaneGeometry(200, 200, 10, 10); // Adjust size and segments
+const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 }); // Gray color
+const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true; // Ground receives shadows
+ground.position.y = -1;
+scene.add(ground);
 
 // SPHERE GEO
 const earthGroup = new THREE.Group();
@@ -62,12 +81,8 @@ function animate() {
     requestAnimationFrame( animate );
     earthGroup.rotation.y += 0.001;
     cloudMesh.rotation.y += 0.0008; 
-    if (camera.position.z > 4) {
-        camera.position.z -= 0.05;
-    } else {
-        console.log("Animation COMPLETE!")
-    }
-    controls.update()
+    
+    controller.update(deltaTime)
     renderer.render( scene, camera );
 }
 

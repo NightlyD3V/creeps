@@ -3,18 +3,22 @@ import * as THREE from 'three'
 const homepage_sound = document.getElementById('homepage-sound')
 const typing_sound = document.getElementById('typing-sound')
 const item_sound = document.getElementById('item-sound')
+const button_sound = document.getElementById('button-click-sound')
 const start_button = document.getElementById('start-button')
 const title = document.getElementById('top-content')
 const loader = document.getElementById('loading')
 const fuzz = document.getElementById('fuzz-overlay')
 
 start_button.addEventListener('click', (event) => {
+    event.preventDefault
+    button_sound.play()
     start_button.disabled = true
     fuzz.style.display = 'inline'
     homepage_sound.play()
     typing_sound.play()
     fadeOut(title, 500)
     fadeIn(loader, 3000)
+    typewriterEffect(textElement, wordsToType, typingSpeed, pauseTime);
 })
 
 function fadeIn(element, duration) {
@@ -123,8 +127,6 @@ function fadeOut(element, duration) {
 }
 
 const textElement = document.getElementById('typewriter-text');
-const wordsToType = ["CREATING . . . WORLD", "COMPILING . . . SHADERS", "INITIALIZING . . . PLAYER", "SUMMONING . . . CREEPS", "DONT LOOK BEHIND YOU . . .", "CONNECTION ESTABLISHED!", "LAUNCHING GAME."];
+const wordsToType = ["CREATING WORLD . . .", "COMPILING SHADERS . . .", "INITIALIZING PLAYER . . .", "SUMMONING CREEPS . . .", "DONT LOOK BEHIND YOU . . .", "CONNECTION ESTABLISHED!", "LAUNCHING GAME . . ."];
 const typingSpeed = 70;
 const pauseTime = 1500;
-
-typewriterEffect(textElement, wordsToType, typingSpeed, pauseTime);
