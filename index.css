@@ -1,31 +1,65 @@
 @font-face { font-family: RavenScream; src: url('./assets/fonts/raven-scream/RavenScream.ttf')}
+@font-face { font-family: BeatMyGuest; src: url('./assets/fonts/beat-my-guest/Beat\ My\ Guest.otf')}
 
 :root {
     --steel-blue: #AFB5D2;
     --steel-white: #B9CBE2;
+    --opaque-blue: #7B97C5;
     --dark-blue: #060A16;
 }
 
 body {
+    position: relative;
     background-color: var(--dark-blue);
-    z-index: 0;
+    z-index: 2;
+    overflow: hidden;
+}
+
+#container {
+    position: relative;
+    z-index: 2;
 }
 
 h1 {
     color: var(--steel-blue);
 }
 
+p {
+    color: var(--steel-blue);
+}
+
 #loading {
     opacity: 0;
+    position: fixed;
+    left:0;
+    right:0;
+    top: 5vh;
+    margin-left:auto;
+    margin-right:auto;
+    font-family: BeatMyGuest;
 }
 
 #start-button {
-    background-color: var(--steel-white)
+    background-color: var(--opaque-blue);
 }
 
-.fuzzy-overlay {
+
+#fuzz-overlay {
+    
+    display: none;
     position: absolute;
+    opacity: 15%;
     z-index: 1; 
     inset: -200%;
-    background-image: url("./assets/textures/white-noise.avif");
+    background-image: url("./assets/textures/static.jpg");
+    animation: shift 1s linear infinite both;
+}
+
+@keyframes shift {
+    0% {
+        transform: translateX(10%) translateY(10%) 
+    }   
+    100% {
+        transform: translateX(-10%) translateY(-10%)
+    }
 }
