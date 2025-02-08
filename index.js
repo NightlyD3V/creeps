@@ -7,6 +7,7 @@ const title = document.getElementById('top-content')
 const loader = document.getElementById('loading')
 
 start_button.addEventListener('click', (event) => {
+    start_button.disabled = true
     homepage_sound.play()
     typing_sound.play()
     fadeOut(title, 1000)
