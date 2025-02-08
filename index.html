@@ -7,17 +7,23 @@
     <body>
         <audio id="homepage-sound">
             <source src="./assets/sounds/fx/computer-sound-55942.mp3" type="audio/mp3">
-          Your browser does not support the audio element.
+            Your browser does not support the audio element!
           </audio> 
+        <audio id="typing-sound">
+            <source src="./assets/sounds/fx/typing-keyboard-sound-254462.mp3" type="audio/mp3">
+            Your browser does not support the audio element!
+        </audio>
         <img id="sound" style=" background-color: white; width: 50px;" src="./assets/icons/sound-on.png" onclick="this.src='./assets/icons/sound-on.png' ? this.src='./assets/icons/sound-off.png' : this.src='./assets/icons/sound-on.png' "/>
+        <h1 id="loading" style="position: fixed; top: 300px; left: 5vw; font-family: RavenScream, sans-serif; font-size: 3vw; text-align: center; margin-bottom: 0px;">LOADING . . .</h1>
         <div id="top-content">
-            <h1 style="color: #044B4A; font-family: RavenScream, sans-serif; font-size: 3vw; text-align: center; margin-bottom: 0px;">THE</h1>
-            <h1 style="color: #044B4A; font-family: RavenScream, sans-serif; font-size: 10vw; text-align: center; margin: 0 auto;">CREEPS.</h1>
-            <p style=" color: #044B4A; text-align: center">For the best experience use headphones!</p>
+            <h1 style="font-family: RavenScream, sans-serif; font-size: 3vw; text-align: center; margin-bottom: 0px;">THE</h1>
+            <h1 style="font-family: RavenScream, sans-serif; font-size: 10vw; text-align: center; margin: 0 auto;">CREEPS.</h1>
+            <p style="text-align: center">For the best experience use headphones!</p>
         </div>
-        <button id="start-button" style="background-color: #5FBE92; margin: 0 auto; display: flex; justify-content: center; padding: 25px; border: none; width: 300px; margin-top: 25px;">START</button>
+        <button id="start-button" style="margin: 0 auto; display: flex; justify-content: center; padding: 25px; border: none; width: 300px; margin-top: 25px;">START</button>
         <button style="margin: 0 auto; display: flex; justify-content: center; padding: 25px; border: none; width: 300px; margin-top: 25px;">CREDITS</button>
         <img style="width: 50px" src="./assets/icons/github.png"/>
+        <div class="fuzz-overlay"></div>
         <script type="module" src="index.js"></script>
     </body>
 </html>

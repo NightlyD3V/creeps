@@ -8,4 +8,24 @@
 
 body {
     background-color: var(--dark-blue);
+    z-index: 0;
+}
+
+h1 {
+    color: var(--steel-blue);
+}
+
+#loading {
+    opacity: 0;
+}
+
+#start-button {
+    background-color: var(--steel-white)
+}
+
+.fuzzy-overlay {
+    position: absolute;
+    z-index: 1; 
+    inset: -200%;
+    background-image: url("./assets/textures/white-noise.avif");
 }
