@@ -5,8 +5,8 @@ class FirstPersonController {
     this.camera = camera;
     this.domElement = domElement || document.body;
 
-    this.movementSpeed = 5; // Adjust movement speed
-    this.lookSpeed = 0.1; // Adjust look speed
+    this.movementSpeed = 1; // Adjust movement speed
+    this.lookSpeed = 1; // Adjust look speed
 
     this.moveForward = false;
     this.moveBackward = false;
@@ -20,7 +20,7 @@ class FirstPersonController {
     this.horizontalLookRotation = 0;
 
     this.headBobAmplitude = 0.1; // Adjust head bob amplitude
-    this.headBobFrequency = 10; // Adjust head bob frequency
+    this.headBobFrequency = 1; // Adjust head bob frequency
     this.headBobOffset = 0;
 
 
@@ -84,16 +84,16 @@ class FirstPersonController {
     this.moveDirection.set(0, 0, 0);
 
     if (this.moveForward) {
-      this.moveDirection.z = -1;
+      this.moveDirection.z = -0.01;
     }
     if (this.moveBackward) {
-      this.moveDirection.z = 1;
+      this.moveDirection.z = 0.01;
     }
     if (this.moveLeft) {
-      this.moveDirection.x = -1;
+      this.moveDirection.x = -0.01;
     }
     if (this.moveRight) {
-      this.moveDirection.x = 1;
+      this.moveDirection.x = 0.01;
     }
 
     this.moveDirection.normalize();
@@ -102,19 +102,19 @@ class FirstPersonController {
     this.velocity.z = this.moveDirection.z * this.movementSpeed;
 
     // Apply head bob when moving
-    if (this.moveDirection.length() > 0) {
-      this.headBobOffset += delta * this.headBobFrequency;
-      const bob = Math.sin(this.headBobOffset) * this.headBobAmplitude;
-      this.camera.position.y += bob;
+    // if (this.moveDirection.length() > 0) {
+    //   this.headBobOffset += delta * this.headBobFrequency;
+    //   const bob = Math.sin(this.headBobOffset) * this.headBobAmplitude;
+    //   this.camera.position.y += bob;
 
-      // Apply slight tilt during movement.  Adjust the tilt amount.
-      const tilt = Math.sin(this.headBobOffset) * 0.05; // Example tilt
-      this.camera.rotation.z = tilt; // Apply tilt
-    } else {
-        // Reset tilt smoothly
-        this.camera.rotation.z *= 0.9; // Smoothly reduce over time.  Adjust value for speed.
-        if (Math.abs(this.camera.rotation.z) < 0.001) this.camera.rotation.z = 0; // Set to 0 if close enough
-    }
+    //   // Apply slight tilt during movement.  Adjust the tilt amount.
+    //   const tilt = Math.sin(this.headBobOffset) * 0.05; // Example tilt
+    //   this.camera.rotation.z = tilt; // Apply tilt
+    // } else {
+    //     // Reset tilt smoothly
+    //     this.camera.rotation.z *= 0.9; // Smoothly reduce over time.  Adjust value for speed.
+    //     if (Math.abs(this.camera.rotation.z) < 0.001) this.camera.rotation.z = 0; // Set to 0 if close enough
+    // }
 
 
     this.camera.rotation.y = this.horizontalLookRotation;

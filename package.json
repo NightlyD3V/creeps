@@ -10,7 +10,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@dimforge/rapier3d": "^0.14.0",
     "three": "^0.173.0",
-    "vite": "^6.1.0"
+    "vite": "^6.1.0",
+    "vite-plugin-top-level-await": "^1.4.4",
+    "vite-plugin-wasm": "^3.4.1"
   }
 }
