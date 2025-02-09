@@ -1,23 +1,49 @@
 import * as THREE from 'three'
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import FirstPersonController from '../../classes/FirstPersonController';
 import { deltaTime } from 'three/tsl';
 
 const rain_sound = document.getElementById('rain-sound');
+rain_sound.volume = 0.1
+rain_sound.play()
 
 // RAPIER PHYSICS!
-// INIT 
 import('@dimforge/rapier3d').then(RAPIER => {
     // Use the RAPIER module here.
     let gravity = { x: 0.0, y: -9.81, z: 0.0 };
     let world = new RAPIER.World(gravity);
-    const { vertices, colors } = world.debugRender();
-
     const dynamicBodies = []
 
-
     const scene = new THREE.Scene()
+ 
+    // SKYBOX
+    let materialArray = []
 
-    const light1 = new THREE.SpotLight(undefined, Math.PI * 10)
+    let skybox_top = new THREE.TextureLoader().load('../../../assets/textures/skybox/top.jpg')
+    let skybox_bot = new THREE.TextureLoader().load('../../../assets/textures/skybox/bot.jpg')
+    let skybox_front = new THREE.TextureLoader().load('../../../assets/textures/skybox/front.jpg')
+    let skybox_back = new THREE.TextureLoader().load('../../../assets/textures/skybox/back.jpg')
+    let skybox_left = new THREE.TextureLoader().load('../../../assets/textures/skybox/left.jpg')
+    let skybox_right = new THREE.TextureLoader().load('../../../assets/textures/skybox/right.jpg')
+    let skybox_materials = [
+        skybox_front, 
+        skybox_back, 
+        skybox_top,
+        skybox_bot, 
+        skybox_right,
+        skybox_left, 
+    ]
+
+    for(let i=0; i < skybox_materials.length; i++) {
+        materialArray.push(new THREE.MeshBasicMaterial({ map: skybox_materials[i], side: THREE.BackSide}))
+    }
+    console.log(materialArray)
+
+    let skybox_geo = new THREE.BoxGeometry(50,50,50)
+    let skybox = new THREE.Mesh(skybox_geo, materialArray)
+    scene.add(skybox)
+
+    const light1 = new THREE.SpotLight(Math.PI * 10)
     light1.position.set(2.5, 5, 5)
     light1.angle = Math.PI / 3
     light1.penumbra = 0.5
@@ -38,6 +64,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.VSMShadowMap
     document.body.appendChild(renderer.domElement)
+
+    const controls = new OrbitControls( camera, renderer.domElement );
 
     window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight
@@ -72,14 +100,14 @@ import('@dimforge/rapier3d').then(RAPIER => {
     world.createCollider(cylinderShape, cylinderBody)
     dynamicBodies.push([cylinderMesh, cylinderBody])
 
+    const floor_texture = new THREE.TextureLoader().load('../../assets/textures/concrete/concrete_Blocks_012_basecolor.jpg')
 
-    
-    const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(100, 1, 100), new THREE.MeshPhongMaterial())
+    const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(10, 1, 10), new THREE.MeshBasicMaterial({ map: floor_texture}))
     floorMesh.receiveShadow = true
     floorMesh.position.y = -1
     scene.add(floorMesh)
     const floorBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0))
-    const floorShape = RAPIER.ColliderDesc.cuboid(50, 0.5, 50)
+    const floorShape = RAPIER.ColliderDesc.cuboid(5, 0.5, 5)
     world.createCollider(floorShape, floorBody)
 
     const raycaster = new THREE.Raycaster()
@@ -94,7 +122,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
       raycaster.setFromCamera(mouse, camera)
 
       const intersects = raycaster.intersectObjects(
-        [cubeMesh, sphereMesh, cylinderMesh, icosahedronMesh, torusKnotMesh],
+        [cubeMesh, sphereMesh, cylinderMesh],
         false
       )
 
@@ -105,12 +133,28 @@ import('@dimforge/rapier3d').then(RAPIER => {
       }
     })
 
+    // CONTROLS
+    const player = new FirstPersonController(camera, renderer.domElement)
+    const menu = document.getElementById('escape-container')
+    document.addEventListener('keydown', function(event) {
+        switch (event.keyCode) {
+          case 27:
+                if(menu.style.display == 'none') {
+                    menu.style.display = 'block'
+                } else {
+                    menu.style.display ='none'
+                }
+            break;
+          // Add more cases for other key codes if needed
+        }
+      });
+
     const clock = new THREE.Clock()
     let delta
 
     function animate() {
-    requestAnimationFrame(animate)
-
+    requestAnimationFrame(animate)  
+    // player.update()
     delta = clock.getDelta()
     world.timestep = Math.min(delta, 0.1)
     world.step()
@@ -128,6 +172,5 @@ import('@dimforge/rapier3d').then(RAPIER => {
     animate()
 })
 
-rain_sound.play()
 
 

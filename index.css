@@ -31,11 +31,8 @@ p {
 #loading {
     opacity: 0;
     position: fixed;
-    left:0;
+    bottom: 314px;
     right:0;
-    top: 5vh;
-    margin-left:auto;
-    margin-right:auto;
     font-family: BeatMyGuest;
 }
 
@@ -48,40 +45,13 @@ p {
     cursor: pointer;
 }
 
-#start-button:after {
-    content: "";
-    background: var(--dark-blue);
-    display: block;
-    position: absolute;
-    padding-top: 300%;
-    padding-left: 350%;
-    margin-left: -20px!important;
-    margin-top: -120%;
-    opacity: 0;
-    transition: all 0.8s
+#controls-container {
+    position: fixed;
+    bottom: 10px;
+    right: 0px;
 }
 
-#start-button:active:after {
-    padding: 0;
-    margin: 0;
-    opacity: 1;
-    transition: 0s
-}
-  
-
-
-#fuzz-overlay {
-    
-    display: none;
-    position: absolute;
-    opacity: 15%;
-    z-index: 1; 
-    inset: -200%;
-    background-image: url("./assets/textures/static.jpg");
-    animation: shift 1s linear infinite both;
-}
-
-@keyframes shift {
+@keyframes shift { 
     0% {
         transform: translateX(10%) translateY(10%) 
     }   

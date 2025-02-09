@@ -40,12 +40,12 @@
                 <p style="text-align: center; color: white">Thanks for playing ❤️</p>
             </div>
             <button id="start-button" style="font-family: RavenScream; font-size: 20px; margin: 0 auto; display: flex; justify-content: center; padding: 15px; border: none; width: 300px; margin-top: 25px;">START</button>
-            <button style="font-family: RavenScream; font-size: 20px; margin: 0 auto; display: flex; justify-content: center; padding: 15px; border: none; width: 300px; margin-top: 25px;">CREDITS</button>
-            <img style="width: 50px" src="./assets/icons/github.png"/>
-            <img id="sound" style=" background-color: white; width: 50px;" src="./assets/icons/sound-on.png" onclick="this.src='./assets/icons/sound-on.png' ? this.src='./assets/icons/sound-off.png' : this.src='./assets/icons/sound-on.png' "/>
-
+            <button id="credits-button" style="font-family: RavenScream; font-size: 20px; margin: 0 auto; display: flex; justify-content: center; padding: 15px; border: none; width: 300px; margin-top: 25px;">CREDITS</button>
+            <div id="controls-container">
+                <img style="width: 50px" src="./assets/icons/github.png"/>
+                <img id="sound" style=" background-color: white; width: 50px;" src="./assets/icons/sound-on.png" onclick="this.src='./assets/icons/sound-on.png' ? this.src='./assets/icons/sound-off.png' : this.src='./assets/icons/sound-on.png' "/>
+            </div>
         </div>
-        <div id="fuzz-overlay"></div>
         <script type="module" src="index.js"></script>
     </body>
 </html>
