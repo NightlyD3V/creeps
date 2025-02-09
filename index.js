@@ -69,7 +69,7 @@ function fadeOut(element, duration) {
             currentWord = words[wordIndex];
             if (charIndex < currentWord.length) {
                 if (!isPausing) {
-                    if(wordIndex == 5) {
+                    if(wordIndex == 3) {
                         item_sound.play();
                     }
                     element.textContent += currentWord.charAt(charIndex);
@@ -127,6 +127,6 @@ function fadeOut(element, duration) {
 }
 
 const textElement = document.getElementById('typewriter-text');
-const wordsToType = ["CREATING WORLD . . .", "COMPILING SHADERS . . .", "INITIALIZING PLAYER . . .", "SUMMONING CREEPS . . .", "DONT LOOK BEHIND YOU . . .", "CONNECTION ESTABLISHED!", "LAUNCHING GAME . . ."];
+const wordsToType = ["COMPILING SHADERS . . .", "SUMMONING CREEPS . . .", "DONT LOOK BEHIND YOU . . .", "CONNECTION ESTABLISHED!", "LAUNCHING GAME . . ."];
 const typingSpeed = 70;
 const pauseTime = 1500;
