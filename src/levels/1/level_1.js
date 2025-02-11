@@ -1,54 +1,52 @@
 import * as THREE from 'three'
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { FirstPersonControls } from 'three/addons/controls/FirstPersonControls.js';
-import { deltaTime } from 'three/tsl';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { FirstPersonControls } from 'three/examples/jsm/Addons.js'
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
+import { Skybox } from '../../../assets/models/scripts/skybox'
+import { Grass } from '../../../assets/models/scripts/grass'
 
-const rain_sound = document.getElementById('rain-sound');
+const rain_sound = document.getElementById('rain-sound')
 rain_sound.volume = 0.1
 rain_sound.play()
 
 // RAPIER PHYSICS!
 import('@dimforge/rapier3d').then(RAPIER => {
     // Use the RAPIER module here.
-    let gravity = { x: 0.0, y: -9.81, z: 0.0 };
-    let world = new RAPIER.World(gravity);
+    let gravity = { x: 0.0, y: -9.81, z: 0.0 }  
+    let world = new RAPIER.World(gravity)
     const dynamicBodies = []
 
     const scene = new THREE.Scene()
 
-    const grid = new THREE.GridHelper( 400, 100, 0xffffff, 0xffffff );
-				grid.material.opacity = 0.5;
-				grid.material.depthWrite = false;
-				grid.material.transparent = true;
-				scene.add( grid );
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100)
+    camera.position.set(0, 5, 20)
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    renderer.setSize(window.innerWidth, window.innerHeight)
+    renderer.shadowMap.enabled = true
+    renderer.shadowMap.type = THREE.VSMShadowMap
+    document.body.appendChild(renderer.domElement)
+
+    const environment = new RoomEnvironment( renderer )
+    const pmremGenerator = new THREE.PMREMGenerator( renderer )
+    scene.background = new THREE.Color( 0xbbbbbb )
+    scene.environment = pmremGenerator.fromScene( environment ).texture;
+    environment.dispose();
+
+    window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight
+    camera.updateProjectionMatrix()
+    renderer.setSize(window.innerWidth, window.innerHeight)
+    })
+
+    const grid = new THREE.GridHelper( 400, 100, 0xffffff, 0xffffff )
+    grid.material.opacity = 0.5
+    grid.material.depthWrite = false
+    grid.material.transparent = true
+    scene.add( grid )
  
     // SKYBOX
-    // let materialArray = []
-
-    // let skybox_top = new THREE.TextureLoader().load('../../../assets/textures/skybox/top.jpg')
-    // let skybox_bot = new THREE.TextureLoader().load('../../../assets/textures/skybox/bot.jpg')
-    // let skybox_front = new THREE.TextureLoader().load('../../../assets/textures/skybox/front.jpg')
-    // let skybox_back = new THREE.TextureLoader().load('../../../assets/textures/skybox/back.jpg')
-    // let skybox_left = new THREE.TextureLoader().load('../../../assets/textures/skybox/left.jpg')
-    // let skybox_right = new THREE.TextureLoader().load('../../../assets/textures/skybox/right.jpg')
-    // let skybox_materials = [
-    //     skybox_front, 
-    //     skybox_back, 
-    //     skybox_top,
-    //     skybox_bot, 
-    //     skybox_right,
-    //     skybox_left, 
-    // ]
-
-    // for(let i=0; i < skybox_materials.length; i++) {
-    //     materialArray.push(new THREE.MeshBasicMaterial({ map: skybox_materials[i], side: THREE.BackSide}))
-    // }
-    // console.log(materialArray)
-
-    // let skybox_geo = new THREE.BoxGeometry(50,50,50)
-    // let skybox = new THREE.Mesh(skybox_geo, materialArray)
-    // scene.add(skybox)
+    Skybox(THREE, scene)
 
     const light1 = new THREE.SpotLight(undefined, Math.PI * 10)
     light1.position.set(2.5, 5, 5)
@@ -62,29 +60,6 @@ import('@dimforge/rapier3d').then(RAPIER => {
     const light2 = light1.clone()
     light2.position.set(-2.5, 5, 5)
     scene.add(light2)
-
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100)
-    // camera.position.set(0, 5, 10)
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true })
-    renderer.setSize(window.innerWidth, window.innerHeight)
-    renderer.shadowMap.enabled = true
-    renderer.shadowMap.type = THREE.VSMShadowMap
-    document.body.appendChild(renderer.domElement)
-
-    const environment = new RoomEnvironment( renderer );
-    const pmremGenerator = new THREE.PMREMGenerator( renderer );
-    scene.background = new THREE.Color( 0xbbbbbb );
-    scene.environment = pmremGenerator.fromScene( environment ).texture;
-    environment.dispose();
-
-   
-
-    window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight
-    camera.updateProjectionMatrix()
-    renderer.setSize(window.innerWidth, window.innerHeight)
-    })
 
     // Capsule Character Collider
     // const capsuleMesh = new THREE.Mesh(new THREE.capsuleMesh(1,1,1))
@@ -120,8 +95,9 @@ import('@dimforge/rapier3d').then(RAPIER => {
     }
     console.log(dynamicBodies)
 
+    // GROUND_PLANE
     const floor_texture = new THREE.TextureLoader().load('../../assets/textures/concrete/concrete_Blocks_012_basecolor.jpg')
-    const floor_material = new THREE.MeshBasicMaterial({color: 0xf3dfff, map: floor_texture})
+    const floor_material = new THREE.MeshBasicMaterial( {color: 0xf3dfff, map: floor_texture} )
 
     const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(100, 1, 100), floor_material)
     floorMesh.receiveShadow = true
@@ -130,6 +106,14 @@ import('@dimforge/rapier3d').then(RAPIER => {
     const floorBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0))
     const floorShape = RAPIER.ColliderDesc.cuboid(50, 0.5, 50)
     world.createCollider(floorShape, floorBody)
+
+    // GRASS 
+    // Grass(floorMesh)
+    const grass_blade = new THREE.PlaneGeometry();
+    const grass_material = new THREE.MeshBasicMaterial( {color: 0xf3dfff} )
+    const grass = new THREE.Mesh( grass_blade, grass_material )
+    scene.add(grass)
+    
 
     const raycaster = new THREE.Raycaster()
     const mouse = new THREE.Vector2()
@@ -155,26 +139,34 @@ import('@dimforge/rapier3d').then(RAPIER => {
     })
 
     // CONTROLS
+
     const player = new FirstPersonControls(camera, renderer.domElement)
     player.lookSpeed = 0.008
-    player.movespeed = 0.008
-    player.verticalMin = Math.PI / 1.7
-    player.verticalMax = Math.PI / 2.3
-    const menu = document.getElementById('escape-container')
-    document.addEventListener('keydown', function(event) {
+    player.movementSpeed = 0.1
+    player.verticalMin = Math.PI / 0.1
+    player.verticalMax = Math.PI / 0.1
+    const controls = new PointerLockControls(camera, renderer.domElement)
+    scene.add(controls.object)
+    const velocity = new THREE.Vector3()
+    const direction = new THREE.Vector3()
+
+    document.addEventListener('keydown', onKeyDown);
+    
+    function onKeyDown() {
+        const menu = document.getElementById('escape-container')
         switch (event.keyCode) {
-          case 27:
-                if(menu.style.display == 'none') {
-                    menu.style.display = 'block'
-                    player.lookSpeed = 0
-                } else {
-                    menu.style.display ='none'
-                    player.lookSpeed = 0.008
-                }
-            break;
-          // Add more cases for other key codes if needed
-        }
-      });
+            case 27:
+                  if(menu.style.display == 'none') {
+                      menu.style.display = 'block'
+                      player.lookSpeed = 0
+                  } else {
+                      menu.style.display ='none'
+                      player.lookSpeed = 0.008
+                  }
+              break;
+            // Add more cases for other key codes if needed
+          }
+    }
 
     const clock = new THREE.Clock()
     let delta

@@ -14,3 +14,7 @@ body {
     background-color: rgba(0, 0, 0, 0.5);
     color: white;
 }
+
+.menu-button {
+    padding: 10px;
+}
