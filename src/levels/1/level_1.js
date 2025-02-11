@@ -108,12 +108,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     world.createCollider(floorShape, floorBody)
 
     // GRASS 
-    // Grass(floorMesh)
-    const grass_blade = new THREE.PlaneGeometry();
-    const grass_material = new THREE.MeshBasicMaterial( {color: 0xf3dfff} )
-    const grass = new THREE.Mesh( grass_blade, grass_material )
-    scene.add(grass)
-    
+    Grass(floorMesh, scene)
 
     const raycaster = new THREE.Raycaster()
     const mouse = new THREE.Vector2()
