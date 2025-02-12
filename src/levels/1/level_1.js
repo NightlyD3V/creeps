@@ -18,7 +18,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
 
     const scene = new THREE.Scene()
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100)
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300)
     camera.position.set(0, 5, 20)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -39,17 +39,17 @@ import('@dimforge/rapier3d').then(RAPIER => {
     renderer.setSize(window.innerWidth, window.innerHeight)
     })
 
-    const grid = new THREE.GridHelper( 400, 100, 0xffffff, 0xffffff )
-    grid.material.opacity = 0.5
-    grid.material.depthWrite = false
-    grid.material.transparent = true
-    scene.add( grid )
+    // const grid = new THREE.GridHelper( 400, 100, 0xffffff, 0xffffff )
+    // grid.material.opacity = 0.5
+    // grid.material.depthWrite = false
+    // grid.material.transparent = true
+    // scene.add( grid )
 
     const axesHelper = new THREE.AxesHelper( 5 );
     scene.add( axesHelper );
  
     // SKYBOX
-    // Skybox(THREE, scene)
+    Skybox(THREE, scene)
 
     const light1 = new THREE.SpotLight(undefined, Math.PI * 10)
     light1.position.set(2.5, 5, 5)
@@ -99,8 +99,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
     console.log(dynamicBodies)
 
     // GROUND_PLANE
-    const floor_texture = new THREE.TextureLoader().load('../../assets/textures/concrete/concrete_Blocks_012_basecolor.jpg')
-    const floor_material = new THREE.MeshBasicMaterial( {color: 0xf3dfff, map: floor_texture} )
+    const floor_texture = new THREE.TextureLoader().load('/assets/materials/concrete/concrete_Blocks_012_basecolor.jpg')
+    const floor_material = new THREE.MeshBasicMaterial( {color: 0xffffff, map: floor_texture} )
 
     const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(100, 1, 100), floor_material)
     floorMesh.receiveShadow = true
