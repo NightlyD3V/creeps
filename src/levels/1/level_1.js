@@ -30,7 +30,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     const environment = new RoomEnvironment( renderer )
     const pmremGenerator = new THREE.PMREMGenerator( renderer )
     scene.background = new THREE.Color( 0xbbbbbb )
-    scene.environment = pmremGenerator.fromScene( environment ).texture;
+    scene.environment = pmremGenerator.fromScene( environment ).texture
     environment.dispose();
 
     window.addEventListener('resize', () => {
@@ -44,9 +44,12 @@ import('@dimforge/rapier3d').then(RAPIER => {
     grid.material.depthWrite = false
     grid.material.transparent = true
     scene.add( grid )
+
+    const axesHelper = new THREE.AxesHelper( 5 );
+    scene.add( axesHelper );
  
     // SKYBOX
-    Skybox(THREE, scene)
+    // Skybox(THREE, scene)
 
     const light1 = new THREE.SpotLight(undefined, Math.PI * 10)
     light1.position.set(2.5, 5, 5)

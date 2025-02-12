@@ -4,51 +4,48 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 export function Grass(ground, scene) {
     // Need to implement instancedBufferGeometry.
     const loader = new GLTFLoader()
-    loader.load('../grass.glb', (gltf) => {
+    loader.load('/assets/models/grass.glb', (gltf) => {
         console.log(gltf)
         scene.add(gltf.scene)
-        // const model = gltf.scene.children[0]
-        // // 1. Get the geometry from the GLTF model
-        // const originalGeometry = model.geometry;
+        const originalMesh = gltf.scene.children[0]
+        
+        // Array to store transformation data 
+        const instancePositions = []
+        for(let i = 0; i < 5; i++) {
+            instancePositions.push(new THREE.Vector3(Math.random() * 10, 0, Math.random() * 10));
+        }
 
-        // // 2. Create the InstancedBufferGeometry
-        // const instancedGeometry = new THREE.InstancedBufferGeometry();
+        console.log(instancePositions)
 
-        // // Copy attributes from the original geometry
-        // const attributes = originalGeometry.attributes;
-        // for (const name in attributes) {
-        //     instancedGeometry.setAttribute(name, attributes[name].clone());
-        // }
-        // instancedGeometry.index = originalGeometry.index ? originalGeometry.index.clone() : null; // Important: Copy the index!
+        // Allocate space on gpu
+        const gpu_array = new Float32Array(instancePositions.length * 3)
+        
+        let index = 0
+        for (const position of instancePositions) {
+            gpu_array[index++] = position.x
+            gpu_array[index++] = position.y
+            gpu_array[index++] = position.z
+        }
 
-        // // 3. Create the instance matrix attribute
-        // const numInstances = 1000; // Example number of instances
-        // const instanceMatrix = new THREE.InstancedBufferAttribute(new Float32Array(numInstances * 16), 16);
-        // instancedGeometry.setAttribute('instanceMatrix', instanceMatrix);
+        // Create an attribute to store the instance positions
+        const positionAttribute = new THREE.InstancedBufferAttribute(gpu_array, 3)
 
-        // // 4. Populate the instance matrix attribute
-        // for (let i = 0; i < numInstances; i++) {
-        //     const matrix = new THREE.Matrix4();
+        // Create the InstancedBufferGeo
+        const instancedGeo = new THREE.InstancedBufferGeometry()
+        instancedGeo.setAttribute('position', originalMesh.geometry.attributes.position.clone())
+       
+        console.log(instancedGeo.attributes.position)
+        instancedGeo.instanceCount = instancePositions.length
+        // instancedGeo.attributes.position = gltf.scene.position
+        // instancedGeo.attributes.instancePositions = positionAttribute
 
-        //     // Example transformations (customize as needed)
-        //     const x = (i % 20) * 2 - 19;
-        //     const z = Math.floor(i / 20) * 2 - 19;
-        //     matrix.translate(new THREE.Vector3(x, 0, z));
-        //     matrix.scale(new THREE.Vector3(0.5 + Math.random()*0.5, 0.5 + Math.random()*0.5, 0.5 + Math.random()*0.5));
-        //     matrix.rotateY(Math.random() * Math.PI * 2);
+        // Create a material
+        const material = originalMesh.material.clone()
 
+        // Create the InstancedMesh
+        const instancedMesh = new THREE.InstancedMesh(instancedGeo, material, instancePositions.length); // 1000 instances
 
-        //     matrix.toArray(instanceMatrix.array, i * 16);
-        // }
-        // instanceMatrix.needsUpdate = true;
-
-        // // 5. Create the material (you can use the original material or a new one)
-        // const material = model.material.clone(); // Clone the original material! Important!
-        // // or
-        // //const material = new THREE.MeshStandardMaterial({ color: 0xffa500 }); // Or create a new material
-
-        // // 6. Create the instanced mesh
-        // const mesh = new THREE.Mesh(instancedGeometry, material);
-        // scene.add(mesh);
+        // Add the mesh to the scene
+        scene.add(instancedMesh);
     }) 
 }
