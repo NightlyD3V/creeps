@@ -1,9 +1,12 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/Addons.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { FirstPersonControls } from 'three/examples/jsm/Addons.js'
-import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
+import { PointerLockControls } from 'three/examples/jsm/Addons.js'
 import { Skybox } from '../../../assets/models/scripts/skybox'
 import { Grass } from '../../../assets/models/scripts/grass'
+import { Trees } from '../../../assets/models/scripts/trees'
+import { Bushes } from '../../../assets/models/scripts/bushes'
+import { Fog } from '../../../assets/models/scripts/fog'
 
 const rain_sound = document.getElementById('rain-sound')
 rain_sound.volume = 0.1
@@ -18,20 +21,21 @@ import('@dimforge/rapier3d').then(RAPIER => {
 
     const scene = new THREE.Scene()
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 300)
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
     camera.position.set(0, 5, 20)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setSize(window.innerWidth, window.innerHeight)
+		renderer.setPixelRatio( window.devicePixelRatio );
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.VSMShadowMap
     document.body.appendChild(renderer.domElement)
 
-    const environment = new RoomEnvironment( renderer )
-    const pmremGenerator = new THREE.PMREMGenerator( renderer )
-    scene.background = new THREE.Color( 0xbbbbbb )
-    scene.environment = pmremGenerator.fromScene( environment ).texture
-    environment.dispose();
+    // const environment = new RoomEnvironment( renderer )
+    // const pmremGenerator = new THREE.PMREMGenerator( renderer )
+    // scene.background = new THREE.Color( 0xFF0000 )
+    // scene.environment = pmremGenerator.fromScene( environment ).texture
+    // environment.dispose();
 
     window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight
@@ -49,27 +53,59 @@ import('@dimforge/rapier3d').then(RAPIER => {
     scene.add( axesHelper );
  
     // SKYBOX
-    Skybox(THREE, scene)
+    // Skybox(THREE, scene)
 
-    const light1 = new THREE.SpotLight(undefined, Math.PI * 10)
-    light1.position.set(2.5, 5, 5)
-    light1.angle = Math.PI / 3
-    light1.penumbra = 0.5
-    light1.castShadow = true
-    light1.shadow.blurSamples = 10
-    light1.shadow.radius = 5
-    scene.add(light1)
+    // FOG 
+    // Fog(scene)
 
-    const light2 = light1.clone()
-    light2.position.set(-2.5, 5, 5)
-    scene.add(light2)
+    // LIGHTING
+    // Three Point Lights setup
+
+    // 1. Key Light (The main light, usually the brightest)
+    const keyLight = new THREE.PointLight(0xffffff, 300); // Color, Intensity
+    keyLight.position.set(2, 2, 2); // Position
+    keyLight.name = "Key Light"; //Give the light a name
+    camera.add(keyLight);
+
+    // // Optional: Add a helper to visualize the light's position
+    // const keyLightHelper = new THREE.PointLightHelper( keyLight, 1 ); // Light, Size
+    // scene.add( keyLightHelper );
+
+
+    // // 2. Fill Light (Fills in the shadows created by the key light)
+    // const fillLight = new THREE.PointLight(0x404040, 50); // Slightly dimmer and cooler color
+    // fillLight.position.set(-2, 1, 1);
+    // fillLight.name = "Fill Light";
+    // scene.add(fillLight);
+
+    // const fillLightHelper = new THREE.PointLightHelper( fillLight, 1 );
+    // scene.add( fillLightHelper );
+
+
+    // // 3. Back Light (Separates the subject from the background)
+    // const backLight = new THREE.PointLight(0x202020, 100); // Dimmer, often a different color
+    // backLight.position.set(0, -2, -2);
+    // backLight.name = "Back Light";
+    // scene.add(backLight);
+
+    // const backLightHelper = new THREE.PointLightHelper( backLight, 1 );
+    // scene.add( backLightHelper );
+
+
+    // Ambient Light (Optional: Provides a base level of illumination)
+    const ambientLight = new THREE.AmbientLight(0x101010); // Very subtle
+    scene.add(ambientLight);
 
     // Capsule Character Collider
-    // const capsuleMesh = new THREE.Mesh(new THREE.capsuleMesh(1,1,1))
-    // let capsule = RAPIER.ColliderDesc.capsule(0.5, 0.2);
+    const capsuleMesh = new THREE.Mesh(new THREE.CapsuleGeometry(10,10,10,8))
+    // scene.add(capsuleMesh)
+    const capsuleBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0).setCanSleep(false))
+    const capsuleShape = RAPIER.ColliderDesc.capsule(1, 1)
+    world.createCollider(capsuleShape, capsuleBody)
+    camera.add(capsuleBody)
 
     // Cuboid Collider
-    const cubeMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshNormalMaterial())
+    const cubeMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({color: 0x800080}))
     cubeMesh.castShadow = true
     scene.add(cubeMesh)
     const cubeBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 5, 0).setCanSleep(false))
@@ -78,7 +114,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     dynamicBodies.push([cubeMesh, cubeBody])
 
     // Ball Collider
-    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(), new THREE.MeshNormalMaterial())
+    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(), new THREE.MeshBasicMaterial({color: 0x800080}))
     sphereMesh.castShadow = true
     scene.add(sphereMesh)
     const sphereBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(-2, 5, 0).setCanSleep(false))
@@ -87,22 +123,21 @@ import('@dimforge/rapier3d').then(RAPIER => {
     dynamicBodies.push([sphereMesh, sphereBody])
 
     // Cylinder Collider
-    const cylinderMesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2, 16), new THREE.MeshNormalMaterial())
+    const cylinderMesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2, 16), new THREE.MeshBasicMaterial({color: 0x800080}))
     cylinderMesh.castShadow = true
     scene.add(cylinderMesh)
     const cylinderBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 5, 0).setCanSleep(false))
     const cylinderShape = RAPIER.ColliderDesc.cylinder(1, 1).setMass(1).setRestitution(1.1)
     world.createCollider(cylinderShape, cylinderBody)
-    for(let i=0; i<10; i++) {
-        dynamicBodies.push([cylinderMesh, cylinderBody])
-    }
+    dynamicBodies.push([cylinderMesh, cylinderBody])
+    
     console.log(dynamicBodies)
 
     // GROUND_PLANE
-    const floor_texture = new THREE.TextureLoader().load('/assets/materials/concrete/concrete_Blocks_012_basecolor.jpg')
+    const floor_texture = new THREE.TextureLoader().load('/assets/materials/dark-green.webp')
     const floor_material = new THREE.MeshBasicMaterial( {color: 0xffffff, map: floor_texture} )
 
-    const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(100, 1, 100), floor_material)
+    const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(1000, 1, 1000), floor_material)
     floorMesh.receiveShadow = true
     floorMesh.position.y = -1
     scene.add(floorMesh)
@@ -113,6 +148,13 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // GRASS 
     Grass(floorMesh, scene)
 
+    // TREES
+    Trees(floorMesh, scene)
+
+    // BUSHES
+    Bushes()
+
+    // CLICK PHYSICS
     const raycaster = new THREE.Raycaster()
     const mouse = new THREE.Vector2()
 
@@ -136,56 +178,158 @@ import('@dimforge/rapier3d').then(RAPIER => {
       }
     })
 
-    // CONTROLS
-
-    const player = new FirstPersonControls(camera, renderer.domElement)
-    player.lookSpeed = 0.008
-    player.movementSpeed = 0.1
-    player.verticalMin = Math.PI / 0.1
-    player.verticalMax = Math.PI / 0.1
-    const controls = new PointerLockControls(camera, renderer.domElement)
-    scene.add(controls.object)
+    // CHARACTER CONTROLS
+    let moveForward = false
+    let moveBackward = false
+    let moveLeft = false
+    let moveRight = false
+    let duck = false
+    let canJump = false
     const velocity = new THREE.Vector3()
     const direction = new THREE.Vector3()
 
-    document.addEventListener('keydown', onKeyDown);
-    
-    function onKeyDown() {
-        const menu = document.getElementById('escape-container')
-        switch (event.keyCode) {
-            case 27:
-                  if(menu.style.display == 'none') {
-                      menu.style.display = 'block'
-                      player.lookSpeed = 0
-                  } else {
-                      menu.style.display ='none'
-                      player.lookSpeed = 0.008
-                  }
-              break;
-            // Add more cases for other key codes if needed
-          }
-    }
+    const controls = new PointerLockControls( camera, document.body)
 
+    const menu = document.getElementById('escape-container')
+    document.addEventListener( 'click', function () {
+      controls.lock();
+    } );
+    controls.addEventListener('lock', () => {
+      console.log("CONTROLS LOCKED")
+      menu.style.display = 'none'
+    })
+    controls.addEventListener( 'unlock', () => {
+      console.log("CONTROLS UNLOCKED")
+      menu.style.display = 'block'
+    });
+
+    scene.add(controls.object)
+
+    const onKeyDown = function ( event ) {
+      switch ( event.code ) {
+
+        case 'ArrowUp':
+        case 'KeyW':
+          moveForward = true
+          break
+
+        case 'ArrowLeft':
+        case 'KeyA':
+          moveLeft = true
+          break
+
+        case 'ArrowDown':
+        case 'KeyS':
+          moveBackward = true
+          break
+
+        case 'ArrowRight':
+        case 'KeyD':
+          moveRight = true
+          break
+
+        case 'Duck':
+          case 'Ctrl':
+          duck = true
+          break
+
+        case 'Space':
+          if ( canJump === true ) velocity.y += 150
+          canJump = false
+          break
+      }
+    };
+
+    const onKeyUp = function ( event ) {
+      switch ( event.code ) {
+        case 'ArrowUp':
+        case 'KeyW':
+          moveForward = false
+          break
+
+        case 'ArrowLeft':
+        case 'KeyA':
+          moveLeft = false
+          break
+
+        case 'ArrowDown':
+        case 'KeyS':
+          moveBackward = false
+          break
+
+        case 'ArrowRight':
+        case 'KeyD':
+          moveRight = false
+          break
+      }
+    };
+
+    document.addEventListener( 'keydown', onKeyDown );
+    document.addEventListener( 'keyup', onKeyUp );
+
+    // PROPS 
+    /*FLASHLIGHT*/
+    const loader = new GLTFLoader();
+
+    loader.load('/assets/models/flashlight.glb', (gltf) => {
+        const flashlight = gltf.scene.children[0];
+        console.log(flashlight)
+        flashlight.position.z = -1.3
+        flashlight.position.y = -1
+        flashlight.position.x = 1
+        flashlight.rotation.x = -14.3
+        camera.add(flashlight)
+    })
+
+   
     const clock = new THREE.Clock()
     let delta
 
+
+    // GAME LOOP
     function animate() {
-    requestAnimationFrame(animate)  
-    player.update(0.3)
-    delta = clock.getDelta()
-    world.timestep = Math.min(delta, 0.1)
-    world.step()
+      requestAnimationFrame(animate)  
+      
+      if(controls.isLocked == true) {
+        velocity.x -= velocity.x * 50 * delta
+        velocity.z -= velocity.z * 50 * delta
 
-    for (let i = 0, n = dynamicBodies.length; i < n; i++) {
-        dynamicBodies[i][0].position.copy(dynamicBodies[i][1].translation())
-        dynamicBodies[i][0].quaternion.copy(dynamicBodies[i][1].rotation())
+        velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
+
+        direction.x = Number( moveRight ) - Number( moveLeft )
+        direction.z = Number( moveForward ) - Number( moveBackward )
+        direction.normalize(); // this ensures consistent movements in all directions
+
+        if ( moveLeft || moveRight ) velocity.x -= direction.x * 400.0 * delta
+        if ( moveForward || moveBackward ) velocity.z -= direction.z * 400.0 * delta
+        // if (moveLeft || moveRight || moveForward || moveBackward ) camera.position.y = Math.sine(3)
+
+        controls.moveRight( - velocity.x * delta )
+        controls.moveForward( - velocity.z * delta )
+
+        
+
+        // controls.object.position.y += ( velocity.y * delta ) 
+
+        // if ( controls.object.position.y < 3 ) {
+
+        //   velocity.y = 0
+        //   controls.object.position.y = 3
+
+        //   canJump = true
+
+        // }
+      }
+      delta = clock.getDelta()
+      world.timestep = Math.min(delta, 0.1)
+      world.step()
+
+      for (let i = 0, n = dynamicBodies.length; i < n; i++) {
+          dynamicBodies[i][0].position.copy(dynamicBodies[i][1].translation())
+          dynamicBodies[i][0].quaternion.copy(dynamicBodies[i][1].rotation())
+      }
+      renderer.render(scene, camera)
     }
-
-
-    renderer.render(scene, camera)
-
-    }
-
     animate()
 })
 
