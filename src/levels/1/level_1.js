@@ -58,40 +58,6 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // FOG 
     // Fog(scene)
 
-    // LIGHTING
-    // Three Point Lights setup
-
-    // 1. Key Light (The main light, usually the brightest)
-    // const keyLight = new THREE.PointLight(0xffffff, 300); // Color, Intensity
-    // keyLight.position.set(2, 2, 2); // Position
-    // keyLight.name = "Key Light"; //Give the light a name
-    // camera.add(keyLight);
-
-    // // Optional: Add a helper to visualize the light's position
-    // const keyLightHelper = new THREE.PointLightHelper( keyLight, 1 ); // Light, Size
-    // scene.add( keyLightHelper );
-
-
-    // // 2. Fill Light (Fills in the shadows created by the key light)
-    // const fillLight = new THREE.PointLight(0x404040, 50); // Slightly dimmer and cooler color
-    // fillLight.position.set(-2, 1, 1);
-    // fillLight.name = "Fill Light";
-    // scene.add(fillLight);
-
-    // const fillLightHelper = new THREE.PointLightHelper( fillLight, 1 );
-    // scene.add( fillLightHelper );
-
-
-    // // 3. Back Light (Separates the subject from the background)
-    // const backLight = new THREE.PointLight(0x202020, 100); // Dimmer, often a different color
-    // backLight.position.set(0, -2, -2);
-    // backLight.name = "Back Light";
-    // scene.add(backLight);
-
-    // const backLightHelper = new THREE.PointLightHelper( backLight, 1 );
-    // scene.add( backLightHelper );
-
-
     // Ambient Light (Optional: Provides a base level of illumination)
     const ambientLight = new THREE.AmbientLight(0x101010); // Very subtle
     scene.add(ambientLight);
@@ -146,8 +112,13 @@ import('@dimforge/rapier3d').then(RAPIER => {
     world.createCollider(floorShape, floorBody)
 
     // GRASS 
-    Grass(floorMesh, scene)
-    Grass(floorMesh, scene)
+    const uniforms = { 
+      time: { value: 0 }, 
+    }
+    
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
 
     // TREES
     Trees(floorMesh, scene)
@@ -306,6 +277,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // GAME LOOP
     function animate() {
       requestAnimationFrame(animate)  
+      // uniforms.uniformsNeedUpdate = true;
+      
       
       if(controls.isLocked == true) {
         velocity.x -= velocity.x * 50 * delta
@@ -319,12 +292,11 @@ import('@dimforge/rapier3d').then(RAPIER => {
 
         if ( moveLeft || moveRight ) velocity.x -= direction.x * 400.0 * delta
         if ( moveForward || moveBackward ) velocity.z -= direction.z * 400.0 * delta
+        // HEADBOB?
         // if (moveLeft || moveRight || moveForward || moveBackward ) camera.position.y = Math.sine(3)
 
         controls.moveRight( - velocity.x * delta )
         controls.moveForward( - velocity.z * delta )
-
-        
 
         // controls.object.position.y += ( velocity.y * delta ) 
 
@@ -340,6 +312,9 @@ import('@dimforge/rapier3d').then(RAPIER => {
       delta = clock.getDelta()
       world.timestep = Math.min(delta, 0.1)
       world.step()
+
+      // SHADERS
+      uniforms.time.value = clock.getElapsedTime();
 
       for (let i = 0, n = dynamicBodies.length; i < n; i++) {
           dynamicBodies[i][0].position.copy(dynamicBodies[i][1].translation())
