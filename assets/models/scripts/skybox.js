@@ -22,7 +22,7 @@ export function Skybox(THREE, scene) {
         //     materialArray.push(new THREE.MeshBasicMaterial())
         // }
 
-        let material = new THREE.MeshBasicMaterial({color: 0xFF0000, side: THREE.BackSide})
+        let material = new THREE.MeshBasicMaterial({color: 0x000000, side: THREE.BackSide})
         let skybox_geo = new THREE.BoxGeometry(300,300,300)
         let skybox = new THREE.Mesh(skybox_geo, material)
         scene.add(skybox)

@@ -33,7 +33,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
 
     // const environment = new RoomEnvironment( renderer )
     // const pmremGenerator = new THREE.PMREMGenerator( renderer )
-    // scene.background = new THREE.Color( 0xFF0000 )
+    // scene.background = new THREE.Color( 0xFFFFFF )
     // scene.environment = pmremGenerator.fromScene( environment ).texture
     // environment.dispose();
 
@@ -53,7 +53,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     scene.add( axesHelper );
  
     // SKYBOX
-    // Skybox(THREE, scene)
+    Skybox(THREE, scene)
 
     // FOG 
     // Fog(scene)
@@ -62,10 +62,10 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // Three Point Lights setup
 
     // 1. Key Light (The main light, usually the brightest)
-    const keyLight = new THREE.PointLight(0xffffff, 300); // Color, Intensity
-    keyLight.position.set(2, 2, 2); // Position
-    keyLight.name = "Key Light"; //Give the light a name
-    camera.add(keyLight);
+    // const keyLight = new THREE.PointLight(0xffffff, 300); // Color, Intensity
+    // keyLight.position.set(2, 2, 2); // Position
+    // keyLight.name = "Key Light"; //Give the light a name
+    // camera.add(keyLight);
 
     // // Optional: Add a helper to visualize the light's position
     // const keyLightHelper = new THREE.PointLightHelper( keyLight, 1 ); // Light, Size
@@ -147,6 +147,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
 
     // GRASS 
     Grass(floorMesh, scene)
+    Grass(floorMesh, scene)
 
     // TREES
     Trees(floorMesh, scene)
@@ -183,6 +184,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     let moveBackward = false
     let moveLeft = false
     let moveRight = false
+    let light = true
     let duck = false
     let canJump = false
     const velocity = new THREE.Vector3()
@@ -269,6 +271,19 @@ import('@dimforge/rapier3d').then(RAPIER => {
 
     // PROPS 
     /*FLASHLIGHT*/
+
+    const spotLight = new THREE.SpotLight( 0xffffff, 800, 50, 0.2);
+    spotLight.position.set( 0, -30 , 1.5 );
+
+    spotLight.castShadow = true;
+
+    spotLight.shadow.mapSize.width = 1024;
+    spotLight.shadow.mapSize.height = 1024;
+
+    spotLight.shadow.camera.near = 10;
+    spotLight.shadow.camera.far = 10;
+    spotLight.shadow.camera.fov = 10;
+
     const loader = new GLTFLoader();
 
     loader.load('/assets/models/flashlight.glb', (gltf) => {
@@ -279,6 +294,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
         flashlight.position.x = 1
         flashlight.rotation.x = -14.3
         camera.add(flashlight)
+        flashlight.add(spotLight)
+        flashlight.add(spotLight.target)
     })
 
    
