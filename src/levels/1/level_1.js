@@ -12,6 +12,8 @@ const rain_sound = document.getElementById('rain-sound')
 rain_sound.volume = 0.1
 rain_sound.play()
 
+const walking_sound = document.getElementById('walking-sound')
+
 // RAPIER PHYSICS!
 import('@dimforge/rapier3d').then(RAPIER => {
     // Use the RAPIER module here.
@@ -63,12 +65,12 @@ import('@dimforge/rapier3d').then(RAPIER => {
     scene.add(ambientLight);
 
     // Capsule Character Collider
-    const capsuleMesh = new THREE.Mesh(new THREE.CapsuleGeometry(10,10,10,8))
-    // scene.add(capsuleMesh)
-    const capsuleBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0).setCanSleep(false))
-    const capsuleShape = RAPIER.ColliderDesc.capsule(1, 1)
-    world.createCollider(capsuleShape, capsuleBody)
-    camera.add(capsuleBody)
+    // const capsuleMesh = new THREE.Mesh(new THREE.CapsuleGeometry(10,10,10,8))
+    // // scene.add(capsuleMesh)
+    // const capsuleBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0).setCanSleep(false))
+    // const capsuleShape = RAPIER.ColliderDesc.capsule(1, 1)
+    // world.createCollider(capsuleShape, capsuleBody)
+    // camera.add(capsuleBody)
 
     // Cuboid Collider
     const cubeMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({color: 0x800080}))
@@ -100,11 +102,11 @@ import('@dimforge/rapier3d').then(RAPIER => {
     console.log(dynamicBodies)
 
     // GROUND_PLANE
-    const floor_texture = new THREE.TextureLoader().load('/assets/materials/dark-green.webp')
-    const floor_material = new THREE.MeshBasicMaterial( {color: 0xffffff, map: floor_texture} )
+    // const floor_texture = new THREE.TextureLoader().load('/assets/materials/dark-green.jpg')
+    const floor_material = new THREE.MeshStandardMaterial( {color: 0xC7EA46} )
 
     const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(1000, 1, 1000), floor_material)
-    floorMesh.receiveShadow = true
+    // floorMesh.receiveShadow = true
     floorMesh.position.y = -1
     scene.add(floorMesh)
     const floorBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0))
@@ -116,6 +118,15 @@ import('@dimforge/rapier3d').then(RAPIER => {
       time: { value: 0 }, 
     }
     
+    // for(let i=0; i<)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
     Grass(floorMesh, scene, uniforms)
     Grass(floorMesh, scene, uniforms)
     Grass(floorMesh, scene, uniforms)
@@ -155,13 +166,13 @@ import('@dimforge/rapier3d').then(RAPIER => {
     let moveBackward = false
     let moveLeft = false
     let moveRight = false
-    let light = true
+    let flashlight = true
     let duck = false
     let canJump = false
     const velocity = new THREE.Vector3()
     const direction = new THREE.Vector3()
 
-    const controls = new PointerLockControls( camera, document.body)
+    const controls = new PointerLockControls( camera, renderer.domElement)
 
     const menu = document.getElementById('escape-container')
     document.addEventListener( 'click', function () {
@@ -178,26 +189,32 @@ import('@dimforge/rapier3d').then(RAPIER => {
 
     scene.add(controls.object)
 
+    console.log(walking_sound)
+
     const onKeyDown = function ( event ) {
       switch ( event.code ) {
 
         case 'ArrowUp':
         case 'KeyW':
+          walking_sound.play()
           moveForward = true
           break
 
         case 'ArrowLeft':
         case 'KeyA':
+          walking_sound.play()
           moveLeft = true
           break
 
         case 'ArrowDown':
         case 'KeyS':
+          walking_sound.play()
           moveBackward = true
           break
 
         case 'ArrowRight':
         case 'KeyD':
+          walking_sound.play()
           moveRight = true
           break
 
@@ -217,21 +234,25 @@ import('@dimforge/rapier3d').then(RAPIER => {
       switch ( event.code ) {
         case 'ArrowUp':
         case 'KeyW':
+          walking_sound.pause()
           moveForward = false
           break
 
         case 'ArrowLeft':
         case 'KeyA':
+          walking_sound.pause()
           moveLeft = false
           break
 
         case 'ArrowDown':
         case 'KeyS':
+          walking_sound.pause()
           moveBackward = false
           break
 
         case 'ArrowRight':
         case 'KeyD':
+          walking_sound.pause()
           moveRight = false
           break
       }
@@ -281,8 +302,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
       
       
       if(controls.isLocked == true) {
-        velocity.x -= velocity.x * 50 * delta
-        velocity.z -= velocity.z * 50 * delta
+        velocity.x -= velocity.x * 40.0 * delta
+        velocity.z -= velocity.z * 40.0 * delta
 
         velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
 
@@ -290,8 +311,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
         direction.z = Number( moveForward ) - Number( moveBackward )
         direction.normalize(); // this ensures consistent movements in all directions
 
-        if ( moveLeft || moveRight ) velocity.x -= direction.x * 400.0 * delta
-        if ( moveForward || moveBackward ) velocity.z -= direction.z * 400.0 * delta
+        if ( moveLeft || moveRight ) velocity.x -= direction.x * 300.0 * delta
+        if ( moveForward || moveBackward ) velocity.z -= direction.z * 300.0 * delta
         // HEADBOB?
         // if (moveLeft || moveRight || moveForward || moveBackward ) camera.position.y = Math.sine(3)
 
@@ -313,13 +334,14 @@ import('@dimforge/rapier3d').then(RAPIER => {
       world.timestep = Math.min(delta, 0.1)
       world.step()
 
-      // SHADERS
-      uniforms.time.value = clock.getElapsedTime();
-
       for (let i = 0, n = dynamicBodies.length; i < n; i++) {
           dynamicBodies[i][0].position.copy(dynamicBodies[i][1].translation())
           dynamicBodies[i][0].quaternion.copy(dynamicBodies[i][1].rotation())
       }
+
+       // SHADERS
+       uniforms.time.value = clock.getElapsedTime();
+       
       renderer.render(scene, camera)
     }
     animate()

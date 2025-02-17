@@ -18,7 +18,7 @@ export function Grass(ground, scene, uniforms) {
             
             // VERTEX POSITION
             
-            vec4 mvPosition = vec4( position, 1.0 );
+            vec4 mvPosition = vec4( position, 0.3 );
             #ifdef USE_INSTANCING
                 mvPosition = instanceMatrix * mvPosition;
             #endif
@@ -26,9 +26,9 @@ export function Grass(ground, scene, uniforms) {
             // DISPLACEMENT
             
             // here the displacement is made stronger on the blades tips.
-            float dispPower = 1.0 - cos( uv.y * 3.1416 / 2.0 );
+            float dispPower = 1.0 - sin( uv.y * 3.1416 / 2.0 );
             
-            float displacement = sin( mvPosition.z + time * 10.0 ) * ( 0.1 * dispPower );
+            float displacement = sin( mvPosition.z + time * 5.0 ) * ( 0.1 * dispPower );
             mvPosition.z += displacement;
             
             //
@@ -61,15 +61,14 @@ export function Grass(ground, scene, uniforms) {
 
         const positions = new THREE.Object3D()
         for(let i=0; i<90000; i++) {
-            positions.position.x = Math.random() * 100 - 50
+            positions.position.x = Math.random() * 1000 - 50
+            positions.rotation.y = Math.random() * 1000 - 50
             positions.position.y = 0
-            positions.position.z = Math.random() * 100 - 50
+            positions.position.z = Math.random() * 1000 - 50
 
             positions.updateMatrix()
             mesh.setMatrixAt(i, positions.matrix)
         }
-
-        console.log(customShader)
         return customShader;
     })
 }
