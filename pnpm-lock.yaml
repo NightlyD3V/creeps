@@ -14,6 +14,9 @@ importers:
       three:
         specifier: ^0.173.0
         version: 0.173.0
+      three-custom-shader-material:
+        specifier: ^6.3.0
+        version: 6.3.0(three@0.173.0)
       vite:
         specifier: ^6.1.0
         version: 6.1.0
@@ -392,6 +395,18 @@ packages:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
 
+  three-custom-shader-material@6.3.0:
+    resolution: {integrity: sha512-5hd5IpAxybyJmrUBZ7tiVW67ESGzMcYv4im6Hs9m9Zgmwj3gHkbPhniqg2Mu69WrtaMialV9gxxFnGP91Yl1vA==}
+    peerDependencies:
+      '@react-three/fiber': '>=8.0'
+      react: '>=18.0'
+      three: '>=0.170'
+    peerDependenciesMeta:
+      '@react-three/fiber':
+        optional: true
+      react:
+        optional: true
+
   three@0.173.0:
     resolution: {integrity: sha512-AUwVmViIEUgBwxJJ7stnF0NkPpZxx1aZ6WiAbQ/Qq61h6I9UR4grXtZDmO8mnlaNORhHnIBlXJ1uBxILEKuVyw==}
 
@@ -710,6 +725,10 @@ snapshots:
       fsevents: 2.3.3
 
   source-map-js@1.2.1: {}
+
+  three-custom-shader-material@6.3.0(three@0.173.0):
+    dependencies:
+      three: 0.173.0
 
   three@0.173.0: {}
 

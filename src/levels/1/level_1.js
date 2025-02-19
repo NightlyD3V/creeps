@@ -7,6 +7,7 @@ import { Grass } from '../../../assets/models/scripts/grass'
 import { Trees } from '../../../assets/models/scripts/trees'
 import { Bushes } from '../../../assets/models/scripts/bushes'
 import { Fog } from '../../../assets/models/scripts/fog'
+import { Fire } from '../../../assets/models/scripts/fire'
 
 const rain_sound = document.getElementById('rain-sound')
 rain_sound.volume = 0.1
@@ -55,7 +56,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     scene.add( axesHelper );
  
     // SKYBOX
-    Skybox(THREE, scene)
+    // Skybox(THREE, scene)
 
     // FOG 
     // Fog(scene)
@@ -120,16 +121,16 @@ import('@dimforge/rapier3d').then(RAPIER => {
     
     // for(let i=0; i<)
     Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
+    // Grass(floorMesh, scene, uniforms)
+    // Grass(floorMesh, scene, uniforms)
+    // Grass(floorMesh, scene, uniforms)
+    // Grass(floorMesh, scene, uniforms)
+    // Grass(floorMesh, scene, uniforms)
+    // Grass(floorMesh, scene, uniforms)
+    // Grass(floorMesh, scene, uniforms)
+    // Grass(floorMesh, scene, uniforms)
+    // Grass(floorMesh, scene, uniforms)
+    // Grass(floorMesh, scene, uniforms)
 
     // TREES
     Trees(floorMesh, scene)
@@ -138,17 +139,46 @@ import('@dimforge/rapier3d').then(RAPIER => {
     Bushes()
 
     // CLICK PHYSICS
+    // const raycaster = new THREE.Raycaster()
+    // const mouse = new THREE.Vector2()
+
+    // renderer.domElement.addEventListener('click', (e) => {
+    //   mouse.set(
+    //     (e.clientX / renderer.domElement.clientWidth) * 2 - 1,
+    //     -(e.clientY / renderer.domElement.clientHeight) * 2 + 1
+    //   )
+
+    //   raycaster.setFromCamera(mouse, camera)
+
+    //   const intersects = raycaster.intersectObjects(
+    //     [cubeMesh, sphereMesh, cylinderMesh],
+    //     false
+    //   )
+
+    //   if (intersects.length) {
+    //     dynamicBodies.forEach((b) => {
+    //       b[0] === intersects[0].object && b[1].applyImpulse(new RAPIER.Vector3(0, 10, 0), true)
+    //     })
+    //   }
+    // })
+
+    // CAMERA RAYCAST 
     const raycaster = new THREE.Raycaster()
-    const mouse = new THREE.Vector2()
+    const mouse = new THREE.Vector2();
 
-    renderer.domElement.addEventListener('click', (e) => {
-      mouse.set(
-        (e.clientX / renderer.domElement.clientWidth) * 2 - 1,
-        -(e.clientY / renderer.domElement.clientHeight) * 2 + 1
-      )
+    function onMouseMove(event) {
 
-      raycaster.setFromCamera(mouse, camera)
+      mouse.x = (window.innerWidth) / 2;
+  
+      mouse.y = (window.innerHeight) / 2;
+  
+      const direction = new THREE.Vector3();
+      camera.getWorldDirection(direction);    
+  
+      raycaster.set(camera.position, direction);
+      // scene.add(new THREE.ArrowHelper(raycaster.ray.direction, raycaster.ray.origin, 300, 0xff0000) );
 
+  
       const intersects = raycaster.intersectObjects(
         [cubeMesh, sphereMesh, cylinderMesh],
         false
@@ -156,10 +186,19 @@ import('@dimforge/rapier3d').then(RAPIER => {
 
       if (intersects.length) {
         dynamicBodies.forEach((b) => {
-          b[0] === intersects[0].object && b[1].applyImpulse(new RAPIER.Vector3(0, 10, 0), true)
+          b[0] === intersects[0].object && b[1].applyImpulse(new RAPIER.Vector3(0, 3, 0), true)
         })
       }
-    })
+  
+  }
+  
+  
+  
+  // Add event listener for mouse movement
+  
+  window.addEventListener('mousemove', onMouseMove, false);
+  
+
 
     // CHARACTER CONTROLS
     let moveForward = false
@@ -288,8 +327,10 @@ import('@dimforge/rapier3d').then(RAPIER => {
         camera.add(flashlight)
         flashlight.add(spotLight)
         flashlight.add(spotLight.target)
-    })
-
+        // HEALTHBAR 
+        Fire(flashlight, uniforms)
+      })
+      
    
     const clock = new THREE.Clock()
     let delta
@@ -298,12 +339,10 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // GAME LOOP
     function animate() {
       requestAnimationFrame(animate)  
-      // uniforms.uniformsNeedUpdate = true;
-      
       
       if(controls.isLocked == true) {
-        velocity.x -= velocity.x * 40.0 * delta
-        velocity.z -= velocity.z * 40.0 * delta
+        velocity.x -= velocity.x * 30.0 * delta
+        velocity.z -= velocity.z * 30.0 * delta
 
         velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
 
