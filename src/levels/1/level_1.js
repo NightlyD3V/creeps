@@ -46,11 +46,11 @@ import('@dimforge/rapier3d').then(RAPIER => {
     renderer.setSize(window.innerWidth, window.innerHeight)
     })
 
-    // const grid = new THREE.GridHelper( 400, 100, 0xffffff, 0xffffff )
-    // grid.material.opacity = 0.5
-    // grid.material.depthWrite = false
-    // grid.material.transparent = true
-    // scene.add( grid )
+    const grid = new THREE.GridHelper( 400, 100, 0xffffff, 0xffffff )
+    grid.material.opacity = 0.5
+    grid.material.depthWrite = false
+    grid.material.transparent = true
+    scene.add( grid )
 
     const axesHelper = new THREE.AxesHelper( 5 );
     scene.add( axesHelper );
@@ -66,12 +66,12 @@ import('@dimforge/rapier3d').then(RAPIER => {
     scene.add(ambientLight);
 
     // Capsule Character Collider
-    // const capsuleMesh = new THREE.Mesh(new THREE.CapsuleGeometry(10,10,10,8))
-    // // scene.add(capsuleMesh)
-    // const capsuleBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0).setCanSleep(false))
-    // const capsuleShape = RAPIER.ColliderDesc.capsule(1, 1)
-    // world.createCollider(capsuleShape, capsuleBody)
-    // camera.add(capsuleBody)
+    const capsuleMesh = new THREE.Mesh(new THREE.CapsuleGeometry(10,10,10,8))
+    // scene.add(capsuleMesh)
+    const capsuleBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0).setCanSleep(false))
+    const capsuleShape = RAPIER.ColliderDesc.capsule(1, 1)
+    world.createCollider(capsuleShape, capsuleBody)
+    camera.add(capsuleBody)
 
     // Cuboid Collider
     const cubeMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({color: 0x800080}))
@@ -121,12 +121,12 @@ import('@dimforge/rapier3d').then(RAPIER => {
     
     // for(let i=0; i<)
     Grass(floorMesh, scene, uniforms)
-    // Grass(floorMesh, scene, uniforms)
-    // Grass(floorMesh, scene, uniforms)
-    // Grass(floorMesh, scene, uniforms)
-    // Grass(floorMesh, scene, uniforms)
-    // Grass(floorMesh, scene, uniforms)
-    // Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
+    Grass(floorMesh, scene, uniforms)
     // Grass(floorMesh, scene, uniforms)
     // Grass(floorMesh, scene, uniforms)
     // Grass(floorMesh, scene, uniforms)
@@ -137,30 +137,6 @@ import('@dimforge/rapier3d').then(RAPIER => {
 
     // BUSHES
     Bushes()
-
-    // CLICK PHYSICS
-    // const raycaster = new THREE.Raycaster()
-    // const mouse = new THREE.Vector2()
-
-    // renderer.domElement.addEventListener('click', (e) => {
-    //   mouse.set(
-    //     (e.clientX / renderer.domElement.clientWidth) * 2 - 1,
-    //     -(e.clientY / renderer.domElement.clientHeight) * 2 + 1
-    //   )
-
-    //   raycaster.setFromCamera(mouse, camera)
-
-    //   const intersects = raycaster.intersectObjects(
-    //     [cubeMesh, sphereMesh, cylinderMesh],
-    //     false
-    //   )
-
-    //   if (intersects.length) {
-    //     dynamicBodies.forEach((b) => {
-    //       b[0] === intersects[0].object && b[1].applyImpulse(new RAPIER.Vector3(0, 10, 0), true)
-    //     })
-    //   }
-    // })
 
     // CAMERA RAYCAST 
     const raycaster = new THREE.Raycaster()
@@ -177,7 +153,6 @@ import('@dimforge/rapier3d').then(RAPIER => {
   
       raycaster.set(camera.position, direction);
       // scene.add(new THREE.ArrowHelper(raycaster.ray.direction, raycaster.ray.origin, 300, 0xff0000) );
-
   
       const intersects = raycaster.intersectObjects(
         [cubeMesh, sphereMesh, cylinderMesh],
@@ -191,15 +166,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
       }
   
   }
-  
-  
-  
-  // Add event listener for mouse movement
-  
+  // Add event listener for mouse movement 
   window.addEventListener('mousemove', onMouseMove, false);
-  
-
-
     // CHARACTER CONTROLS
     let moveForward = false
     let moveBackward = false
@@ -331,10 +299,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
         Fire(flashlight, uniforms)
       })
       
-   
     const clock = new THREE.Clock()
     let delta
-
 
     // GAME LOOP
     function animate() {
@@ -344,7 +310,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
         velocity.x -= velocity.x * 30.0 * delta
         velocity.z -= velocity.z * 30.0 * delta
 
-        velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
+        velocity.y -= 9.8 * 50 * delta; // 100.0 = mass
 
         direction.x = Number( moveRight ) - Number( moveLeft )
         direction.z = Number( moveForward ) - Number( moveBackward )
@@ -358,17 +324,16 @@ import('@dimforge/rapier3d').then(RAPIER => {
         controls.moveRight( - velocity.x * delta )
         controls.moveForward( - velocity.z * delta )
 
-        // controls.object.position.y += ( velocity.y * delta ) 
+        controls.object.position.y += ( velocity.y * delta ) 
 
-        // if ( controls.object.position.y < 3 ) {
+        if ( controls.object.position.y < 3 ) {
+          velocity.y = 0
+          controls.object.position.y = 3
+          canJump = true
 
-        //   velocity.y = 0
-        //   controls.object.position.y = 3
-
-        //   canJump = true
-
-        // }
+        }
       }
+
       delta = clock.getDelta()
       world.timestep = Math.min(delta, 0.1)
       world.step()

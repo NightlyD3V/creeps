@@ -5,7 +5,7 @@ export function Trees(ground, scene) {
     const loader = new GLTFLoader();
 
     loader.load('/assets/models/cracked_tree.glb', (gltf) => {
-        const trees = gltf.scene.children[0];
+        const trees = gltf.scene.children[0]
 
         const mesh = new THREE.InstancedMesh(trees.geometry.clone(), trees.material.clone(), 5)
         scene.add(mesh)

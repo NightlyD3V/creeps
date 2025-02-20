@@ -63,11 +63,9 @@ export function Grass(ground, scene, uniforms) {
 
         const positions = new THREE.Object3D()
         for(let i=0; i<90000; i++) {
-            positions.position.x = Math.random() * 1000 - 50
-            positions.rotation.y = Math.random() * 1000 - 50
+            positions.position.x = Math.random() * 1000 - 500
             positions.position.y = 0
-            positions.position.z = Math.random() * 1000 - 50
-
+            positions.position.z = Math.random() * 1000 - 500
             positions.updateMatrix()
             mesh.setMatrixAt(i, positions.matrix)
         }
