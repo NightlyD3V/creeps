@@ -40,6 +40,26 @@ export function Grass(ground, scene, uniforms) {
 
     const fragmentShader = `
     varying vec2 vUv;
+
+    // struct DirectionalLight {
+    //     vec3 direction;
+    //     vec3 color;
+    //     int shadow;
+    //     float shadowBias;
+    //     float shadowRadius;
+    //     vec3 shadowMapSize;
+    // };
+
+    // struct PointLight {
+    //     vec3 position;
+    //     vec3 color;
+    //     float distance;
+    //     float decay;
+    //     int shadow;
+    //     float shadowBias;
+    //     float shadowRadius;
+    //     vec3 shadowMapSize;
+    // };
     
     void main() {
         vec3 baseColor = vec3( 0.41, 1.0, 0.5 );
@@ -51,7 +71,7 @@ export function Grass(ground, scene, uniforms) {
         vertexShader, 
         fragmentShader, 
         side: THREE.DoubleSide,
-        uniforms
+        uniforms,
     })
     // END SHADER
 
@@ -66,6 +86,7 @@ export function Grass(ground, scene, uniforms) {
             positions.position.x = Math.random() * 1000 - 500
             positions.position.y = 0
             positions.position.z = Math.random() * 1000 - 500
+            positions.rotation.y = Math.random() * 100
             positions.updateMatrix()
             mesh.setMatrixAt(i, positions.matrix)
         }

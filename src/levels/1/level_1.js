@@ -8,6 +8,7 @@ import { Trees } from '../../../assets/models/scripts/trees'
 import { Bushes } from '../../../assets/models/scripts/bushes'
 import { Fog } from '../../../assets/models/scripts/fog'
 import { Fire } from '../../../assets/models/scripts/fire'
+import { Enemy } from '../../../assets/models/scripts/enemy'
 
 const rain_sound = document.getElementById('rain-sound')
 rain_sound.volume = 0.1
@@ -25,7 +26,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     const scene = new THREE.Scene()
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
-    camera.position.set(0, 5, 20)
+    camera.position.set(0, 3  , 20)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setSize(window.innerWidth, window.innerHeight)
@@ -46,17 +47,19 @@ import('@dimforge/rapier3d').then(RAPIER => {
     renderer.setSize(window.innerWidth, window.innerHeight)
     })
 
-    const grid = new THREE.GridHelper( 400, 100, 0xffffff, 0xffffff )
-    grid.material.opacity = 0.5
-    grid.material.depthWrite = false
-    grid.material.transparent = true
-    scene.add( grid )
+    // const grid = new THREE.GridHelper( 400, 100, 0xffffff, 0xffffff )
+    // grid.material.opacity = 0.5
+    // grid.material.depthWrite = false
+    // grid.material.transparent = true
+    // scene.add( grid )
 
     const axesHelper = new THREE.AxesHelper( 5 );
     scene.add( axesHelper );
+
+    Enemy(scene, camera)
  
     // SKYBOX
-    // Skybox(THREE, scene)
+    // Skybox(scene)
 
     // FOG 
     // Fog(scene)
@@ -117,20 +120,13 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // GRASS 
     const uniforms = { 
       time: { value: 0 }, 
+      uniforms: THREE.UniformsUtils.merge([
+        THREE.UniformsLib.lights, // Include lights uniforms
+      ]),
     }
     
     // for(let i=0; i<)
     Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    Grass(floorMesh, scene, uniforms)
-    // Grass(floorMesh, scene, uniforms)
-    // Grass(floorMesh, scene, uniforms)
-    // Grass(floorMesh, scene, uniforms)
-    // Grass(floorMesh, scene, uniforms)
 
     // TREES
     Trees(floorMesh, scene)
@@ -182,16 +178,19 @@ import('@dimforge/rapier3d').then(RAPIER => {
     const controls = new PointerLockControls( camera, renderer.domElement)
 
     const menu = document.getElementById('escape-container')
+    const crosshair = document.getElementById('crosshair')
     document.addEventListener( 'click', function () {
       controls.lock();
     } );
     controls.addEventListener('lock', () => {
       console.log("CONTROLS LOCKED")
+      crosshair.style.display = 'block'
       menu.style.display = 'none'
     })
     controls.addEventListener( 'unlock', () => {
       console.log("CONTROLS UNLOCKED")
       menu.style.display = 'block'
+      crosshair.style.display = 'none'
     });
 
     scene.add(controls.object)
@@ -271,42 +270,60 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // PROPS 
     /*FLASHLIGHT*/
 
-    const spotLight = new THREE.SpotLight( 0xffffff, 800, 50, 0.2);
-    spotLight.position.set( 0, -30 , 1.5 );
+    const spotLight = new THREE.SpotLight( 0xffffff, 100.0, 100, 0.1);
+    spotLight.position.set( 0, 3, 60 );
+    spotLight.target = new THREE.Object3D( 0, 0, 0 );
 
+    const spotLightHelper = new THREE.SpotLightHelper( spotLight );
+    
     spotLight.castShadow = true;
-
-    spotLight.shadow.mapSize.width = 1024;
-    spotLight.shadow.mapSize.height = 1024;
-
-    spotLight.shadow.camera.near = 10;
-    spotLight.shadow.camera.far = 10;
-    spotLight.shadow.camera.fov = 10;
-
+    
+    // spotLight.shadow.mapSize.width = 1024;
+    // spotLight.shadow.mapSize.height = 1024;
+    
+    // spotLight.shadow.camera.near = 100;
+    // spotLight.shadow.camera.far = 100;
+    // spotLight.shadow.camera.fov = 10;
+    
     const loader = new GLTFLoader();
-
+    
     loader.load('/assets/models/flashlight.glb', (gltf) => {
-        const flashlight = gltf.scene.children[0];
-        console.log(flashlight)
-        flashlight.position.z = -1.3
-        flashlight.position.y = -1
-        flashlight.position.x = 1
-        flashlight.rotation.x = -14.3
-        camera.add(flashlight)
-        flashlight.add(spotLight)
-        flashlight.add(spotLight.target)
-        // HEALTHBAR 
-        Fire(flashlight, uniforms)
-      })
+      const flashlight = gltf.scene.children[0];
+      console.log(flashlight)
+      flashlight.position.z = -1.3
+      flashlight.position.y = -1
+      flashlight.position.x = 1
+      flashlight.rotation.x = -14.3
+      camera.add(flashlight)
+      flashlight.add(spotLight)
+      flashlight.add( spotLightHelper );
+      flashlight.add(spotLight.target)
+      // HEALTHBAR 
+      Fire(camera)
+    })
       
     const clock = new THREE.Clock()
     let delta
 
+    // CAMERA MOVEMENT 
+    function oscillate(input, min, max) {
+      const range = max - min;
+      return min + Math.abs(((input + range) % (range * 2)) - range);
+    }
+
+    let counter = 0;
+    const minValue = 0;
+    const maxValue =  5;
+    const oscillationSpeed = 1;
+
     // GAME LOOP
     function animate() {
       requestAnimationFrame(animate)  
-      
+        counter += oscillationSpeed;
+        const oscillatingValue = oscillate(counter, minValue, maxValue);
+        
       if(controls.isLocked == true) {
+
         velocity.x -= velocity.x * 30.0 * delta
         velocity.z -= velocity.z * 30.0 * delta
 
@@ -317,7 +334,10 @@ import('@dimforge/rapier3d').then(RAPIER => {
         direction.normalize(); // this ensures consistent movements in all directions
 
         if ( moveLeft || moveRight ) velocity.x -= direction.x * 300.0 * delta
-        if ( moveForward || moveBackward ) velocity.z -= direction.z * 300.0 * delta
+        if ( moveForward || moveBackward ) {
+          velocity.z -= direction.z * 300.0 * delta
+          camera.position.y = Math.sin(oscillatingValue) * delta + 1
+        }
         // HEADBOB?
         // if (moveLeft || moveRight || moveForward || moveBackward ) camera.position.y = Math.sine(3)
 
@@ -330,12 +350,11 @@ import('@dimforge/rapier3d').then(RAPIER => {
           velocity.y = 0
           controls.object.position.y = 3
           canJump = true
-
         }
       }
 
       delta = clock.getDelta()
-      world.timestep = Math.min(delta, 0.1)
+      world.timestep = Math.min(delta, 0.5)
       world.step()
 
       for (let i = 0, n = dynamicBodies.length; i < n; i++) {

@@ -21,8 +21,8 @@ body {
 
 #crosshair {
     background-color: red;
-    width: 10px;
-    height: 10px;
+    width: 5px;
+    height: 5px;
     border-radius: 100%;
     position: fixed;
     top: 50%;
