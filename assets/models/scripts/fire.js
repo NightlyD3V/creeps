@@ -43,7 +43,7 @@ export function Fire(camera, uniforms) {
             gl_FragColor = vec4(color, radial);
         }
         `;
-        const geometry = new THREE.SphereGeometry(0.15, 24, 24);
+        const geometry = new THREE.SphereGeometry(0.1, 24, 24);
         const material = new THREE.ShaderMaterial({
           uniforms: {
             uTime: { value: 0.0 },
@@ -68,6 +68,6 @@ export function Fire(camera, uniforms) {
     // CREATE PLANE 
     const fireball = new THREE.Mesh(geometry, material);
     // fireball.rotation.set(-1,0,-0.5)
-    fireball.position.set( -2.0,-0.8,-2.0 )
+    fireball.position.set( -1.0,0,-1.7 )
     camera.add(fireball);
 }

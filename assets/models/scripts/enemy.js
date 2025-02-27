@@ -10,7 +10,7 @@ export function Enemy(scene, camera) {
         hand.position.z = 0
         scene.add(hand)
 
-        // RAYCAST TO CHECK FOR 
+        // RAYCAST TO CHECK FOR OBSTACLES
         
         // FOLLOW PLAYER 
         const directionVector = new THREE.Vector3();
@@ -30,3 +30,10 @@ export function Enemy(scene, camera) {
         animate()
     })
 }
+
+/* NEED TO IMPLEMENT A STATE MACHINE 
+        -> seek player
+        --> avoid obstacles 
+        ---> attack player
+        ----> Line of sight loss repeat seek
+*/

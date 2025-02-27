@@ -7,17 +7,24 @@ export function Trees(ground, scene) {
     loader.load('/assets/models/cracked_tree.glb', (gltf) => {
         const trees = gltf.scene.children[0]
 
-        const mesh = new THREE.InstancedMesh(trees.geometry.clone(), trees.material.clone(), 5)
-        scene.add(mesh)
+       const textureLoader = new THREE.TextureLoader()
+           textureLoader.load('/assets/materials/cracked_tree/base_color.png', function(texture) {
+             const floor_material = new THREE.MeshStandardMaterial({
+               color: 0xC7EA46,
+               map: texture
+            })
+            const mesh = new THREE.InstancedMesh(trees.geometry.clone(), floor_material, 5)
+            scene.add(mesh)
+            const positions = new THREE.Object3D()
+            for(let i=0; i<5; i++) {
+                positions.position.x = Math.random() * 100 - 50
+                positions.position.y = 0
+                positions.position.z = Math.random() * 100 - 50
+    
+                positions.updateMatrix()
+                mesh.setMatrixAt(i, positions.matrix)
+            }
+        })
 
-        const positions = new THREE.Object3D()
-        for(let i=0; i<5; i++) {
-            positions.position.x = Math.random() * 100 - 50
-            positions.position.y = 0
-            positions.position.z = Math.random() * 100 - 50
-
-            positions.updateMatrix()
-            mesh.setMatrixAt(i, positions.matrix)
-        }
     })
 }

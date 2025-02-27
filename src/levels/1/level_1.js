@@ -30,9 +30,12 @@ import('@dimforge/rapier3d').then(RAPIER => {
 
     const renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setSize(window.innerWidth, window.innerHeight)
-		renderer.setPixelRatio( window.devicePixelRatio );
+		renderer.setPixelRatio( window.devicePixelRatio )
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.VSMShadowMap
+    renderer.outputEncoding = THREE.sRGBEncoding
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1
     document.body.appendChild(renderer.domElement)
 
     // const environment = new RoomEnvironment( renderer )
@@ -65,7 +68,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // Fog(scene)
 
     // Ambient Light (Optional: Provides a base level of illumination)
-    const ambientLight = new THREE.AmbientLight(0x101010); // Very subtle
+    const ambientLight = new THREE.AmbientLight(0x101010,4.0); // Very subtle
     scene.add(ambientLight);
 
     // Capsule Character Collider
@@ -106,30 +109,28 @@ import('@dimforge/rapier3d').then(RAPIER => {
     console.log(dynamicBodies)
 
     // GROUND_PLANE
-    // const floor_texture = new THREE.TextureLoader().load('/assets/materials/dark-green.jpg')
-    const floor_material = new THREE.MeshStandardMaterial( {color: 0xC7EA46} )
+    const textureLoader = new THREE.TextureLoader()
+    textureLoader.load('/assets/materials/seamless-rock.avif', function(texture) {
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(20, 20); // Adjust these values to control repetition
+    
+      const floor_material = new THREE.MeshStandardMaterial({
+        color: 0xC7EA46,
+        map: texture
+      })
+      const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(1000, 1, 1000), floor_material)
+      // floorMesh.receiveShadow = true
+      floorMesh.position.y = -1
+      scene.add(floorMesh)
 
-    const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(1000, 1, 1000), floor_material)
-    // floorMesh.receiveShadow = true
-    floorMesh.position.y = -1
-    scene.add(floorMesh)
+      // TREES
+      Trees(floorMesh, scene)
+    })
+
     const floorBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -1, 0))
     const floorShape = RAPIER.ColliderDesc.cuboid(50, 0.5, 50)
     world.createCollider(floorShape, floorBody)
-
-    // GRASS 
-    const uniforms = { 
-      time: { value: 0 }, 
-      uniforms: THREE.UniformsUtils.merge([
-        THREE.UniformsLib.lights, // Include lights uniforms
-      ]),
-    }
-    
-    // for(let i=0; i<)
-    Grass(floorMesh, scene, uniforms)
-
-    // TREES
-    Trees(floorMesh, scene)
 
     // BUSHES
     Bushes()
@@ -270,7 +271,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // PROPS 
     /*FLASHLIGHT*/
 
-    const spotLight = new THREE.SpotLight( 0xffffff, 100.0, 100, 0.1);
+    const spotLight = new THREE.SpotLight( 0xffffff, 1000.0, 0, 0.05);
     spotLight.position.set( 0, 3, 60 );
     spotLight.target = new THREE.Object3D( 0, 0, 0 );
 
@@ -283,7 +284,10 @@ import('@dimforge/rapier3d').then(RAPIER => {
     
     // spotLight.shadow.camera.near = 100;
     // spotLight.shadow.camera.far = 100;
-    // spotLight.shadow.camera.fov = 10;
+    spotLight.shadow.camera.fov = 70;
+
+    Grass(scene)
+   
     
     const loader = new GLTFLoader();
     
@@ -295,8 +299,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
       flashlight.position.x = 1
       flashlight.rotation.x = -14.3
       camera.add(flashlight)
-      flashlight.add(spotLight)
-      flashlight.add( spotLightHelper );
+      camera.add(spotLight)
+      // camera.add( spotLightHelper );
       flashlight.add(spotLight.target)
       // HEALTHBAR 
       Fire(camera)
@@ -361,14 +365,14 @@ import('@dimforge/rapier3d').then(RAPIER => {
           dynamicBodies[i][0].position.copy(dynamicBodies[i][1].translation())
           dynamicBodies[i][0].quaternion.copy(dynamicBodies[i][1].rotation())
       }
-
-       // SHADERS
-       uniforms.time.value = clock.getElapsedTime();
        
       renderer.render(scene, camera)
     }
     animate()
 })
+
+// COLOR MANAGEMENT
+THREE.ColorManagement.enabled = true;
 
 
 
