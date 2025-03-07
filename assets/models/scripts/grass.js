@@ -35,7 +35,7 @@ export function Grass(scene) {
     loader.load('/assets/models/grass_patch.glb', (gltf) => {
         const grass = gltf.scene.children[0];
 
-        const instanceCount = 500000
+        const instanceCount = 100000
 
         const mesh = new THREE.InstancedMesh(grass.geometry.clone(), newMat, instanceCount);
         mesh.scale.set(3, 3, 3);
@@ -44,7 +44,7 @@ export function Grass(scene) {
         const positions = new THREE.Object3D();
         for (let i = 0; i < instanceCount; i++) {
             positions.position.x = Math.random() * 1000 - 500;
-            positions.position.y = 0;
+            positions.position.y = -0.1;
             positions.position.z = Math.random() * 1000 - 500;
             positions.rotation.y = Math.random() * 100;
             positions.updateMatrix();

@@ -8,9 +8,9 @@ export function Trees(ground, scene) {
         const trees = gltf.scene.children[0]
 
        const textureLoader = new THREE.TextureLoader()
-           textureLoader.load('/assets/materials/cracked_tree/base_color.png', function(texture) {
+           textureLoader.load('/assets/materials/cracked-tree/base_color.png', function(texture) {
              const floor_material = new THREE.MeshStandardMaterial({
-               color: 0xC7EA46,
+               color: 0x964C01,
                map: texture
             })
             const mesh = new THREE.InstancedMesh(trees.geometry.clone(), floor_material, 5)

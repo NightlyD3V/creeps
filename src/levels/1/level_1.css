@@ -9,18 +9,29 @@ body {
     left: 50%; 
     transform: translate(-50%, -50%); 
     padding: 6vw; 
-    width: 6vw;
-    height: 6vw;
+    width: 15vw;
+    height: 15vw;
     background-color: rgba(0, 0, 0, 0.5);
     color: white;
 }
 
 .menu-button {
     padding: 10px;
+    margin: 5px;
+    width: 100%;
+}
+
+#instructions {
+    position: absolute; 
+    top: 50%; 
+    left: 50%; 
+    transform: translate(-50%, -50%); 
+    color: white;
+
 }
 
 #crosshair {
-    background-color: red;
+    background-color: white;
     width: 5px;
     height: 5px;
     border-radius: 100%;
@@ -28,4 +39,13 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
+}
+
+#fire {
+    width: 300px;
+    height: 300px;
+    border-radius: 100%;
+    position: fixed;
+    top: 60%;
+    left: 10%;
 }

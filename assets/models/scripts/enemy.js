@@ -14,9 +14,9 @@ export function Enemy(scene, camera) {
         
         // FOLLOW PLAYER 
         const directionVector = new THREE.Vector3();
-        const moveSpeed = 0.03
+        const moveSpeed = 0.02
         const stopDistance = 4
-        
+
         function animate() {
             if(hand.position.distanceTo(camera.position) > stopDistance) {
                 directionVector.subVectors(camera.position, hand.position).normalize()

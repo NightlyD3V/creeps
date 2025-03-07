@@ -9,6 +9,7 @@ import { Bushes } from '../../../assets/models/scripts/bushes'
 import { Fog } from '../../../assets/models/scripts/fog'
 import { Fire } from '../../../assets/models/scripts/fire'
 import { Enemy } from '../../../assets/models/scripts/enemy'
+import { Moon } from '../../../assets/models/scripts/moon'
 
 const rain_sound = document.getElementById('rain-sound')
 rain_sound.volume = 0.1
@@ -25,7 +26,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
 
     const scene = new THREE.Scene()
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50)
     camera.position.set(0, 3  , 20)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -35,14 +36,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
     renderer.shadowMap.type = THREE.VSMShadowMap
     renderer.outputEncoding = THREE.sRGBEncoding
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 1
+    renderer.toneMappingExposure = 8
     document.body.appendChild(renderer.domElement)
-
-    // const environment = new RoomEnvironment( renderer )
-    // const pmremGenerator = new THREE.PMREMGenerator( renderer )
-    // scene.background = new THREE.Color( 0xFFFFFF )
-    // scene.environment = pmremGenerator.fromScene( environment ).texture
-    // environment.dispose();
 
     window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight
@@ -113,14 +108,13 @@ import('@dimforge/rapier3d').then(RAPIER => {
     textureLoader.load('/assets/materials/seamless-rock.avif', function(texture) {
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
-      texture.repeat.set(20, 20); // Adjust these values to control repetition
+      texture.repeat.set(70, 70); // Adjust these values to control repetition
     
       const floor_material = new THREE.MeshStandardMaterial({
         color: 0xC7EA46,
         map: texture
       })
       const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(1000, 1, 1000), floor_material)
-      // floorMesh.receiveShadow = true
       floorMesh.position.y = -1
       scene.add(floorMesh)
 
@@ -163,9 +157,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
       }
   
   }
-  // Add event listener for mouse movement 
+  // CHARACTER CONTROLS
   window.addEventListener('mousemove', onMouseMove, false);
-    // CHARACTER CONTROLS
     let moveForward = false
     let moveBackward = false
     let moveLeft = false
@@ -272,7 +265,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     /*FLASHLIGHT*/
 
     const spotLight = new THREE.SpotLight( 0xffffff, 1000.0, 0, 0.05);
-    spotLight.position.set( 0, 3, 60 );
+    spotLight.position.set( 0, 3, 50 );
     spotLight.target = new THREE.Object3D( 0, 0, 0 );
 
     const spotLightHelper = new THREE.SpotLightHelper( spotLight );
@@ -286,7 +279,15 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // spotLight.shadow.camera.far = 100;
     spotLight.shadow.camera.fov = 70;
 
+    // CHUNK GRASS?
     Grass(scene)
+    // Grass(scene)
+    // Grass(scene)
+    // Grass(scene)
+    // Grass(scene)
+    // Grass(scene)
+    // Grass(scene)
+    // Grass(scene)
    
     
     const loader = new GLTFLoader();
@@ -300,10 +301,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
       flashlight.rotation.x = -14.3
       camera.add(flashlight)
       camera.add(spotLight)
-      // camera.add( spotLightHelper );
       flashlight.add(spotLight.target)
-      // HEALTHBAR 
-      Fire(camera)
     })
       
     const clock = new THREE.Clock()
@@ -323,11 +321,12 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // GAME LOOP
     function animate() {
       requestAnimationFrame(animate)  
-        counter += oscillationSpeed;
-        const oscillatingValue = oscillate(counter, minValue, maxValue);
-        
-      if(controls.isLocked == true) {
+      counter += oscillationSpeed
+      const oscillatingValue = oscillate(counter, minValue, maxValue)
+      const instructions = document.getElementById("instructions")
 
+      if(controls.isLocked == true) {
+        instructions.style.display = 'none'
         velocity.x -= velocity.x * 30.0 * delta
         velocity.z -= velocity.z * 30.0 * delta
 
@@ -353,7 +352,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
         if ( controls.object.position.y < 3 ) {
           velocity.y = 0
           controls.object.position.y = 3
-          canJump = true
+          // canJump = true
         }
       }
 
@@ -370,9 +369,6 @@ import('@dimforge/rapier3d').then(RAPIER => {
     }
     animate()
 })
-
-// COLOR MANAGEMENT
-THREE.ColorManagement.enabled = true;
 
 
 
