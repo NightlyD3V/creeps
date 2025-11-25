@@ -1,6 +1,9 @@
-body {
-    margin: 0 auto;
+html, body {
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
 }
+canvas { display: block; } 
 
 #escape-container {
     display: none;
@@ -12,7 +15,6 @@ body {
     width: 15vw;
     height: 15vw;
     background-color: rgba(0, 0, 0, 0.5);
-    color: white;
 }
 
 .menu-button {
@@ -42,10 +44,12 @@ body {
 }
 
 #fire {
-    width: 300px;
-    height: 300px;
-    border-radius: 100%;
+    width: 200px;
+    height: 200px;
+    margin: -40px;
+}
+
+#healthbar {
     position: fixed;
-    top: 60%;
-    left: 10%;
+    bottom: 20px;               
 }

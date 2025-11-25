@@ -11,7 +11,6 @@ start_button.addEventListener('click', (event) => {
     event.preventDefault
     button_sound.play()
     start_button.style.display = 'none';
-    credits_button.style.display = 'none';
     homepage_sound.play()
     typing_sound.play()
     fadeOut(title, 500)

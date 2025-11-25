@@ -14,7 +14,7 @@ export function Enemy(scene, camera) {
         
         // FOLLOW PLAYER 
         const directionVector = new THREE.Vector3();
-        const moveSpeed = 0.02
+        const moveSpeed = 0.1
         const stopDistance = 4
 
         function animate() {

@@ -18,13 +18,28 @@
             <button class="menu-button">SOUND OFF</button>
             <button class="menu-button">REPORT BUG</button>
         </div>
-        <div id="instructions">
-            <h1>Careful, the creeps are out tonight. Avoid them and make it out alive. Click to start.</h1>
-        </div>
         <div id="player_ui">
             <div id="crosshair"></div>
         </div>
-        <img src="../../../assets/animations/fire/1.png" id="fire">
-        <script type="module" src="./level_1.js"></script>
+        <div id="healthbar">
+            <img src="../../../assets/animations/fire/1.png" id="fire">
+            <img src="../../../assets/animations/fire/1.png" id="fire">
+            <img src="../../../assets/animations/fire/1.png" id="fire">
+        </div>
+        <script> 
+            // Animate fire image
+            const fireImg = document.querySelectorAll('#fire');    
+            console.log("fireImg:", fireImg);
+            let fireFrame = 1;
+            setInterval(() => {
+                fireFrame = (fireFrame % 6) + 1; // Assuming there are 8 frames
+                fireImg.forEach(img => {
+                    img.src = `../../../assets/animations/fire/${fireFrame}.png`;
+                });
+            }, 100); // Change frame every 100ms
+
+
+        </script>
+        <script type="module" src="./level_1.jsx"></script>
     </body>
 </html>
