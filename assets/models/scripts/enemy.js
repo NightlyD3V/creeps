@@ -8,6 +8,7 @@ export function Enemy(scene, camera) {
         hand.position.x = 0
         hand.position.y = 3
         hand.position.z = 0
+        hand.rotation.x = 20
         scene.add(hand)
 
         // RAYCAST TO CHECK FOR OBSTACLES
@@ -31,7 +32,7 @@ export function Enemy(scene, camera) {
     })
 }
 
-/* NEED TO IMPLEMENT A STATE MACHINE 
+/* TODO: IMPLEMENT A STATE MACHINE 
         -> seek player
         --> avoid obstacles 
         ---> attack player
