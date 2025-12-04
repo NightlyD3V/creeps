@@ -1,7 +1,7 @@
 <!DOCTYPE html>
     <head>
         <meta charset="UTF-8"/>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
         <title>CREEPS</title>
         <link rel="stylesheet" href="index.css"/>
     </head>
@@ -28,9 +28,21 @@
                 <source src="./assets/sounds/fx/furin-japanese-wind-chime-41733.mp3" type="audio/mp3">
                 Your browser does not support the audio element!!
             </audio>
+            <audio id="scary-music-box">
+                <source src="./assets/sounds/fx/scary-music-box.mp3" type="audio/mp3">
+                Your browser does not support the audio element!!
+            </audio>
             <!-- ------------------------------------------------------------------------------- -->
             <div id="loading">
                 <h1 style="font-size: 4vw; text-align: center; margin-bottom: 0px;" id="typewriter-text"></h1>
+            </div>
+            <!-- Preload progress bar -->
+            <div id="preload-container" style="display: none; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); width: 80%; max-width: 600px;">
+                <div id="preload-status" style="color: #666; font-family: monospace; font-size: 12px; margin-bottom: 5px; text-align: center;"></div>
+                <div style="background: #222; border: 1px solid #444; border-radius: 4px; height: 8px; overflow: hidden;">
+                    <div id="preload-bar" style="background: linear-gradient(90deg, #8B0000, #ff0000); height: 100%; width: 0%; transition: width 0.2s ease;"></div>
+                </div>
+                <div id="preload-percent" style="color: #8B0000; font-family: 'Raven Scream', serif; font-size: 14px; margin-top: 5px; text-align: center;">0%</div>
             </div>
             <div id="top-content">
 
@@ -40,8 +52,10 @@
                     <span style="--index: 1; color: var(--steel-blue); font-family: RavenScream, sans-serif; font-size: 10vw; text-align: center;  margin: 0 auto;">CREEPS.</span>
                     <span style="--index: 2; color: var(--steel-blue); font-family: RavenScream, sans-serif; font-size: 10vw; text-align: center;  margin: 0 auto;">CREEPS.</span>
                 </div>
-                <p style="text-align: center; color: white"><b>WARNING!!</b> This is a horror game. For the best experience use headphones and mobile is currently not supported.</p>
-                <p style="text-align: center; color: white">This game utilized WEBGPU make sure you have the correct gpu selected for your browser for optimal performance!</p>
+                <p style="text-align: center; color: white"><b>WARNING!!</b> This is a horror game. For the best experience use headphones and mobile is currently not fully supported.</p>
+                <p style="text-align: center; color: white">This game utilized WEBGPU make sure you have the correct gpu selected for your browser for optimal performance! should run mostly stable 60FPS</p>
+                <p style="text-align: center; color: white">There is an AI enemy in the game that can see you, hear you and hunt you down... try to avoid it.</p>
+                <p style="text-align: center; color: white">Buy me a coffee ☕</p>
                 <p style="text-align: center; color: white">Thanks for playing ❤️</p>
             </div>
             <button id="start-button" style="font-family: RavenScream; font-size: 20px; margin: 0 auto; display: flex; justify-content: center; padding: 15px; border: none; width: 300px; margin-top: 25px;">START</button>

@@ -50,7 +50,7 @@ export function Moon(scene, camera) {
     const hazeMaterial = new THREE.MeshBasicMaterial({
         color: 0x6677aa,
         transparent: true,
-        opacity: 0.03,
+        opacity: 0.015,  // Reduced from 0.03
         side: THREE.BackSide,
         fog: false
     });
@@ -140,17 +140,17 @@ export function Moon(scene, camera) {
         return sprite;
     };
     
-    // Main bright flare at moon
-    const mainFlare = createFlareSprite(25, 'rgba(200, 220, 255, 0.3)', 0.8);
+    // Main bright flare at moon - reduced intensity
+    const mainFlare = createFlareSprite(12, 'rgba(200, 220, 255, 0.15)', 0.4);
     flareElements.push({ sprite: mainFlare, offset: 0 });
     
-    // Secondary flares along the line from moon to screen center
-    flareElements.push({ sprite: createHexFlare(8, 'rgba(150, 180, 255, 0.2)', 0.3), offset: 0.3 });
-    flareElements.push({ sprite: createFlareSprite(4, 'rgba(100, 150, 255, 0.15)', 0.4), offset: 0.5 });
-    flareElements.push({ sprite: createHexFlare(12, 'rgba(180, 200, 255, 0.1)', 0.2), offset: 0.7 });
-    flareElements.push({ sprite: createFlareSprite(6, 'rgba(200, 220, 255, 0.2)', 0.5), offset: 1.0 });
-    flareElements.push({ sprite: createHexFlare(15, 'rgba(120, 160, 255, 0.08)', 0.15), offset: 1.3 });
-    flareElements.push({ sprite: createFlareSprite(3, 'rgba(255, 255, 255, 0.3)', 0.6), offset: 1.6 });
+    // Secondary flares along the line from moon to screen center - reduced
+    flareElements.push({ sprite: createHexFlare(4, 'rgba(150, 180, 255, 0.1)', 0.15), offset: 0.3 });
+    flareElements.push({ sprite: createFlareSprite(2, 'rgba(100, 150, 255, 0.08)', 0.2), offset: 0.5 });
+    flareElements.push({ sprite: createHexFlare(6, 'rgba(180, 200, 255, 0.05)', 0.1), offset: 0.7 });
+    flareElements.push({ sprite: createFlareSprite(3, 'rgba(200, 220, 255, 0.1)', 0.25), offset: 1.0 });
+    flareElements.push({ sprite: createHexFlare(8, 'rgba(120, 160, 255, 0.04)', 0.08), offset: 1.3 });
+    flareElements.push({ sprite: createFlareSprite(2, 'rgba(255, 255, 255, 0.15)', 0.3), offset: 1.6 });
     
     // Update function for lens flare
     const updateLensFlare = (camera) => {
@@ -183,8 +183,8 @@ export function Moon(scene, camera) {
                 const distance = 50;
                 flare.sprite.position.copy(camera.position).add(dir.multiplyScalar(distance));
                 
-                // Fade based on how centered moon is
-                flare.sprite.material.opacity = visibility * (flare.offset === 0 ? 1 : 0.6);
+                // Fade based on how centered moon is - reduced intensity
+                flare.sprite.material.opacity = visibility * (flare.offset === 0 ? 0.5 : 0.3);
             } else {
                 flare.sprite.visible = false;
             }

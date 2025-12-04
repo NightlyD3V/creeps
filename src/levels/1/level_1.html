@@ -1,18 +1,215 @@
 <!DOCTYPE html>
     <head>
         <meta charset="UTF-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
         <title>CREEPS</title>
         <link rel="stylesheet" href="./level_1.css"/>
+        <style>
+            #game-loading-screen {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: #000;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 999999;
+                transition: opacity 0.5s ease-out;
+            }
+            #game-loading-screen.fade-out {
+                opacity: 0;
+                pointer-events: none;
+            }
+            #game-loading-screen h1 {
+                color: #8B0000;
+                font-family: 'Raven Scream', serif;
+                font-size: 3rem;
+                text-shadow: 0 0 20px #ff0000;
+                animation: pulse 1.5s ease-in-out infinite;
+            }
+            @keyframes pulse {
+                0%, 100% { opacity: 0.5; }
+                50% { opacity: 1; }
+            }
+            
+            /* Glitch effect overlay */
+            #glitch-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                pointer-events: none;
+                z-index: 99998;
+                opacity: 0;
+                mix-blend-mode: screen;
+            }
+            
+            /* TV static noise - generated via SVG filter */
+            #glitch-overlay::after {
+                content: '';
+                position: absolute;
+                top: -50%;
+                left: -50%;
+                width: 200%;
+                height: 200%;
+                background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+                opacity: 0;
+                pointer-events: none;
+            }
+            
+            #glitch-overlay.active::after {
+                animation: staticNoise 0.5s steps(8) forwards;
+            }
+            
+            @keyframes staticNoise {
+                0% { opacity: 0.4; transform: translate(0, 0); }
+                10% { opacity: 0.3; transform: translate(-5%, -5%); }
+                20% { opacity: 0.5; transform: translate(5%, 5%); }
+                30% { opacity: 0.25; transform: translate(-10%, 5%); }
+                40% { opacity: 0.4; transform: translate(10%, -5%); }
+                50% { opacity: 0.35; transform: translate(-5%, 10%); }
+                60% { opacity: 0.3; transform: translate(5%, -10%); }
+                70% { opacity: 0.2; transform: translate(0, 5%); }
+                80% { opacity: 0.15; transform: translate(-5%, 0); }
+                90% { opacity: 0.1; transform: translate(5%, 5%); }
+                100% { opacity: 0; transform: translate(0, 0); }
+            }
+            
+            #glitch-overlay.active {
+                animation: glitchEffect 0.5s ease-out forwards;
+            }
+            
+            @keyframes glitchEffect {
+                0% {
+                    opacity: 1;
+                    background: linear-gradient(
+                        0deg,
+                        transparent 0%,
+                        rgba(255, 0, 0, 0.15) 2%,
+                        transparent 4%,
+                        transparent 8%,
+                        rgba(255, 255, 255, 0.1) 9%,
+                        transparent 10%,
+                        transparent 15%,
+                        rgba(0, 255, 255, 0.1) 16%,
+                        transparent 18%,
+                        transparent 25%,
+                        rgba(255, 0, 0, 0.12) 26%,
+                        transparent 28%
+                    );
+                    transform: translateX(-3px);
+                    filter: hue-rotate(90deg) contrast(1.2);
+                }
+                8% {
+                    opacity: 0.9;
+                    background: linear-gradient(
+                        0deg,
+                        transparent 10%,
+                        rgba(255, 255, 255, 0.15) 11%,
+                        transparent 13%,
+                        transparent 30%,
+                        rgba(255, 0, 0, 0.2) 31%,
+                        transparent 33%,
+                        transparent 50%,
+                        rgba(0, 255, 255, 0.12) 51%,
+                        transparent 53%
+                    );
+                    transform: translateX(4px) skewX(2deg);
+                }
+                16% {
+                    opacity: 1;
+                    transform: translateX(-2px) skewX(-1deg);
+                    filter: hue-rotate(-60deg) saturate(1.5) brightness(1.1);
+                }
+                24% {
+                    background: linear-gradient(
+                        0deg,
+                        transparent 20%,
+                        rgba(255, 255, 255, 0.2) 21%,
+                        transparent 23%,
+                        transparent 40%,
+                        rgba(255, 0, 0, 0.15) 41%,
+                        transparent 43%,
+                        transparent 65%,
+                        rgba(0, 255, 255, 0.1) 66%,
+                        transparent 68%
+                    );
+                    transform: translateX(3px) skewX(1deg);
+                }
+                40% {
+                    opacity: 0.7;
+                    transform: translateX(-1px) skewX(-0.5deg);
+                    filter: hue-rotate(45deg) contrast(1.1);
+                }
+                60% {
+                    opacity: 0.4;
+                    transform: translateX(1px);
+                    filter: hue-rotate(-30deg);
+                }
+                80% {
+                    opacity: 0.2;
+                    transform: translateX(-1px);
+                }
+                100% {
+                    opacity: 0;
+                    transform: translateX(0);
+                    filter: none;
+                }
+            }
+            
+            /* Scanline effect during glitch */
+            #glitch-overlay::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 0, 0, 0.1) 2px,
+                    rgba(0, 0, 0, 0.1) 4px
+                );
+                pointer-events: none;
+            }
+            
+            /* RGB split effect on the canvas during glitch */
+            body.glitch-active canvas {
+                animation: rgbSplit 0.5s ease-out;
+            }
+            
+            @keyframes rgbSplit {
+                0% {
+                    filter: drop-shadow(-3px 0 0 rgba(255, 0, 0, 0.5)) drop-shadow(3px 0 0 rgba(0, 255, 255, 0.5));
+                }
+                25% {
+                    filter: drop-shadow(2px 0 0 rgba(255, 0, 0, 0.3)) drop-shadow(-2px 0 0 rgba(0, 255, 255, 0.3));
+                }
+                50% {
+                    filter: drop-shadow(-1px 0 0 rgba(255, 0, 0, 0.4)) drop-shadow(1px 0 0 rgba(0, 255, 255, 0.4));
+                }
+                75% {
+                    filter: drop-shadow(1px 0 0 rgba(255, 0, 0, 0.2)) drop-shadow(-1px 0 0 rgba(0, 255, 255, 0.2));
+                }
+                100% {
+                    filter: none;
+                }
+            }
+        </style>
     </head>
     <body>
-        <audio id="rain-sound" loop>
-            <source src="../../../assets/sounds/fx/calming-rain.mp3" type="audio/mp3">
-            Your browser does not support the audio element!
-        </audio>
-        <audio id="walking-sound" loop>
-            <source src="../../../assets/sounds/fx/walking-through-grass.mp3" type="audio/mp3">
-            Your browser does not support the audio element!
-        </audio>
+        <!-- Glitch effect overlay -->
+        <div id="glitch-overlay"></div>
+        <!-- Loading screen to prevent white flash -->
+        <div id="game-loading-screen">
+            <h1>Find all 5 pages of the diary...</h1>
+        </div>
+        <!-- Audio handled by Web Audio API in level_1.jsx for better performance -->
         <div id="escape-container">
             <a href="../../../index.html"><button class="menu-button">EXIT GAME</button></a>
             <button class="menu-button">SOUND OFF</button>
@@ -27,6 +224,38 @@
             <img src="../../../assets/animations/fire/1.png" id="fire">
             <img src="../../../assets/animations/fire/1.png" id="fire">
         </div>
+        
+        <!-- Movement State Icons (bottom right) -->
+        <div id="movement-icons">
+            <img src="../../../assets/icons/walking.png" id="walking-icon" class="movement-icon" style="display: none;">
+            <img src="../../../assets/icons/running.png" id="running-icon" class="movement-icon" style="display: none;">
+            <img src="../../../assets/icons/crouch.png" id="crouch-icon" class="movement-icon" style="display: none;">
+        </div>
+        
+        <!-- Mobile Touch Controls -->
+        <div id="mobile-controls">
+            <!-- Virtual Joystick (left side) -->
+            <div id="joystick-zone">
+                <div id="joystick-base">
+                    <div id="joystick-thumb"></div>
+                </div>
+            </div>
+            
+            <!-- Look Zone (right side - invisible touch area) -->
+            <div id="look-zone"></div>
+            
+            <!-- Action Buttons (right side) -->
+            <div id="action-buttons">
+                <button id="btn-jump" class="action-btn">↑</button>
+                <button id="btn-sprint" class="action-btn">🏃</button>
+                <button id="btn-crouch" class="action-btn">🦆</button>
+                <button id="btn-flashlight" class="action-btn">🔦</button>
+            </div>
+            
+            <!-- Menu Button (top right) -->
+            <button id="btn-menu" class="action-btn menu-btn">☰</button>
+        </div>
+        
         <script> 
             // Animate fire image
             const fireImg = document.querySelectorAll('#fire');    
@@ -38,7 +267,31 @@
                     img.src = `../../../assets/animations/fire/${fireFrame}.png`;
                 });
             }, 100); // Change frame every 100ms
-
+            
+            // Global function to trigger glitch effect (called by AI when detecting player)
+            window.triggerGlitchEffect = function() {
+                const overlay = document.getElementById('glitch-overlay');
+                const body = document.body;
+                
+                if (overlay) {
+                    // Remove class first to reset animation
+                    overlay.classList.remove('active');
+                    body.classList.remove('glitch-active');
+                    
+                    // Force reflow to restart animation
+                    void overlay.offsetWidth;
+                    
+                    // Add classes to trigger animation
+                    overlay.classList.add('active');
+                    body.classList.add('glitch-active');
+                    
+                    // Remove after animation completes
+                    setTimeout(() => {
+                        overlay.classList.remove('active');
+                        body.classList.remove('glitch-active');
+                    }, 500);
+                }
+            };
 
         </script>
         <script type="module" src="./level_1.jsx"></script>

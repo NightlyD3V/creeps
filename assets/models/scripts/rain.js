@@ -12,7 +12,9 @@ export class Rain {
     }
 
     init() {
-        const dropCount = 3000;
+        // WebGPU max uniform buffer is 65536 bytes. Each instance = 64 bytes.
+        // Max safe instances = 65536 / 64 = 1024
+        const dropCount = 1000;
         
         // Create VERY thin line-like geometry for rain drops - more like actual rain streaks
         const rainGeom = new THREE.PlaneGeometry(0.04, 2.5); // Much thinner width
@@ -141,7 +143,8 @@ export class Rain {
         if (!this.mesh) return;
 
         const opacities = [0, 0.5, 0.7, 0.9];
-        const counts = [0, 1000, 2000, 3000];
+        // Counts must not exceed dropCount (1000) - WebGPU uniform buffer limit
+        const counts = [0, 300, 600, 1000];
 
         const idx = Math.max(0, Math.min(3, Math.floor(intensity)));
         this.mesh.material.opacity = opacities[idx];
