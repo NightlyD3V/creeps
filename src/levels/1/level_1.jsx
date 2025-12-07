@@ -1,5 +1,4 @@
 import * as THREE from 'three/webgpu'
-import { pass, mrt, output, emissive } from 'three/tsl'
 import { GLTFLoader } from 'three/examples/jsm/Addons.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
@@ -13,10 +12,12 @@ import { Bushes } from '../../../assets/models/scripts/bushes'
 import { Fog } from '../../../assets/models/scripts/fog'
 import { Fire } from '../../../assets/models/scripts/fire'
 import { Moon } from '../../../assets/models/scripts/moon'
-import { EnemyAI } from '../../../assets/models/scripts/enemyAI_improved'
+import { EnemyAI } from '../../../assets/models/scripts/enemyAI_improved.jsx'
+import { loadSkeletonFx, playDeadlyStrike, playHitMiss } from './audio_fx'
 import { Maze } from '../../../assets/models/scripts/maze'
 import Stats from 'stats.js'
-import { positionLocal, Fn, uniform, vec4, vec3, vec2, length, float, abs, time, sin, mod, fract, floor, hash, uv, mix, clamp } from 'three/tsl'
+import { positionLocal, Fn, uniform, vec4, vec3, vec2, length, float, abs, time, sin, mod, fract, floor, hash, uv, mix, clamp, shapeCircle,
+				instancedArray, instanceIndex } from 'three/tsl'
 
 // Reusable temp vectors to avoid GC pressure in render loop
 const _camPos = new THREE.Vector3();
@@ -34,12 +35,15 @@ let threeAudioListener = null; // Store reference to THREE.js AudioListener for 
 let menuSoundBuffer = null;
 let buttonPressBuffer = null;
 let rainSoundBuffer = null;
+let cricketSoundBuffer = null;
 let walkingSoundBuffer = null;
 let gruntSoundBuffer = null;
 
 // Looping sound sources (need to track for stop/restart)
 let rainSource = null;
 let rainGain = null;
+let cricketSource = null;
+let cricketGain = null;
 let walkingSource = null;
 let walkingGain = null;
 let masterGain = null; // Master volume control for fade out
@@ -86,6 +90,14 @@ function loadAllSounds() {
         })
         .catch(e => console.error('Error loading rain sound:', e));
 
+    // Load ambient insect/cricket loop to layer with rain
+    loadSound('/assets/sounds/fx/cricket-insect-sound.mp3')
+      .then(buffer => {
+        cricketSoundBuffer = buffer;
+        console.log('Cricket sound loaded');
+      })
+      .catch(e => console.error('Error loading cricket sound:', e));
+
     loadSound('/assets/sounds/fx/walking-through-grass.mp3')
         .then(buffer => { walkingSoundBuffer = buffer; })
         .catch(e => console.error('Error loading walking sound:', e));
@@ -112,8 +124,103 @@ function startRainOnInteraction() {
     }
 }
 
+// --- DAMAGE UI HELPERS ---
+let damageOverlay = null;
+function ensureDamageOverlay() {
+  try {
+    if (damageOverlay) return;
+    damageOverlay = document.getElementById('damage-overlay');
+    if (!damageOverlay) {
+      damageOverlay = document.createElement('div');
+      damageOverlay.id = 'damage-overlay';
+      Object.assign(damageOverlay.style, {
+        position: 'fixed',
+        top: '0',
+        left: '0',
+        width: '100vw',
+        height: '100vh',
+        background: 'rgba(255,0,0,0.8)',
+        pointerEvents: 'none',
+        opacity: '0',
+        transition: 'opacity 200ms ease-out',
+        zIndex: '999999'
+      });
+      document.body.appendChild(damageOverlay);
+    }
+  } catch (e) {
+    damageOverlay = null;
+  }
+}
+
+function screenShake(duration = 200, magnitude = 6) {
+  try {
+    const el = renderer && renderer.domElement ? renderer.domElement : document.body;
+    const start = performance.now();
+    const orig = el.style.transform || '';
+    function frame() {
+      const now = performance.now();
+      const elapsed = now - start;
+      const pct = Math.min(1, elapsed / duration);
+      const damper = 1 - pct;
+      if (pct >= 1) {
+        el.style.transform = orig;
+        return;
+      }
+      const x = (Math.random() * 2 - 1) * magnitude * damper;
+      const y = (Math.random() * 2 - 1) * magnitude * damper;
+      el.style.transform = `translate(${x}px, ${y}px)`;
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  } catch (e) {
+    // ignore errors
+  }
+}
+
+// --- PICKUP ICON HUD ---
+let pickupIcon = null;
+function ensurePickupIcon() {
+  try {
+    if (pickupIcon) return;
+    pickupIcon = document.getElementById('pickup-icon');
+    if (!pickupIcon) {
+      pickupIcon = document.createElement('img');
+      pickupIcon.id = 'pickup-icon';
+      pickupIcon.src = '/assets/icons/pickup.png';
+      Object.assign(pickupIcon.style, {
+        position: 'fixed',
+        left: 'calc(50% - 24px)',
+        top: 'calc(50% - 24px)',
+        width: '48px',
+        height: '48px',
+        pointerEvents: 'none',
+        opacity: '0',
+        transition: 'opacity 120ms ease-out, transform 120ms ease-out',
+        transform: 'scale(1)',
+        zIndex: '999999'
+      });
+      document.body.appendChild(pickupIcon);
+    }
+  } catch (e) {
+    pickupIcon = null;
+  }
+}
+
+function showPickupIcon() {
+  ensurePickupIcon();
+  if (!pickupIcon) return;
+  pickupIcon.style.opacity = '1';
+  pickupIcon.style.transform = 'scale(1.05)';
+}
+
+function hidePickupIcon() {
+  if (!pickupIcon) return;
+  pickupIcon.style.opacity = '0';
+  pickupIcon.style.transform = 'scale(1)';
+}
+
 function playRainSound() {
-    if (!audioContext || !rainSoundBuffer || rainSource) return;
+  if (!audioContext || !rainSoundBuffer || rainSource) return;
     
     if (audioContext.state === 'suspended') audioContext.resume();
     
@@ -127,6 +234,23 @@ function playRainSound() {
     rainSource.connect(rainGain);
     rainGain.connect(masterGain || audioContext.destination);
     rainSource.start(0);
+    
+  // Also start cricket/insect ambient loop if loaded
+  try {
+    if (cricketSoundBuffer && !cricketSource) {
+      cricketSource = audioContext.createBufferSource();
+      cricketGain = audioContext.createGain();
+      cricketSource.buffer = cricketSoundBuffer;
+      cricketSource.loop = true;
+      // quieter than rain by default
+      cricketGain.gain.value = 0.06;
+      cricketSource.connect(cricketGain);
+      cricketGain.connect(masterGain || audioContext.destination);
+      cricketSource.start(0);
+    }
+  } catch (e) {
+    console.warn('Failed to start cricket sound:', e);
+  }
 }
 
 function stopRainSound() {
@@ -134,18 +258,28 @@ function stopRainSound() {
         try { rainSource.stop(); } catch(e) {}
         rainSource = null;
     }
+  if (cricketSource) {
+    try { cricketSource.stop(); } catch(e) {}
+    cricketSource = null;
+  }
 }
 
 // Fade out rain sound over duration (in seconds)
 function fadeOutRainSound(duration = 2.0) {
-    if (rainGain && rainSource) {
-        const startTime = audioContext.currentTime;
-        rainGain.gain.setValueAtTime(rainGain.gain.value, startTime);
-        rainGain.gain.linearRampToValueAtTime(0, startTime + duration);
-        setTimeout(() => {
-            stopRainSound();
-        }, duration * 1000);
+  if (audioContext && (rainGain || cricketGain) && (rainSource || cricketSource)) {
+    const startTime = audioContext.currentTime;
+    if (rainGain) {
+      rainGain.gain.setValueAtTime(rainGain.gain.value, startTime);
+      rainGain.gain.linearRampToValueAtTime(0, startTime + duration);
     }
+    if (cricketGain) {
+      cricketGain.gain.setValueAtTime(cricketGain.gain.value, startTime);
+      cricketGain.gain.linearRampToValueAtTime(0, startTime + duration);
+    }
+    setTimeout(() => {
+      stopRainSound();
+    }, duration * 1000);
+  }
 }
 
 // Fade out walking sound over duration (in seconds)
@@ -182,6 +316,10 @@ function fadeOutAllAudio(duration = 2.0) {
     if (rainGain) {
         rainGain.gain.setValueAtTime(rainGain.gain.value, startTime);
         rainGain.gain.linearRampToValueAtTime(0, startTime + duration);
+    }
+    if (cricketGain) {
+      cricketGain.gain.setValueAtTime(cricketGain.gain.value, startTime);
+      cricketGain.gain.linearRampToValueAtTime(0, startTime + duration);
     }
     if (walkingGain) {
         walkingGain.gain.setValueAtTime(walkingGain.gain.value, startTime);
@@ -279,6 +417,8 @@ function playGruntSound() {
 // RAPIER PHYSICS!
 import('@dimforge/rapier3d').then(RAPIER => {
     console.log('Rapier ready:', RAPIER.version())
+
+
     let gravity = { x: 0.0, y: -20, z: 0.0 }
     let world = new RAPIER.World(gravity)
     let prevTime = performance.now()
@@ -293,18 +433,24 @@ import('@dimforge/rapier3d').then(RAPIER => {
     
     // Initialize our audio system with the shared context
     initAudioSystem(audioListener);
+    loadSkeletonFx(audioContext);
     
     const renderer = new THREE.WebGPURenderer({ antialias: false })
     renderer.setSize(window.innerWidth, window.innerHeight)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)) // Cap pixel ratio for performance
+    // Cap pixel ratio to reduce GPU fill cost (lower gives more stable fps)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0))
     renderer.shadowMap.enabled = true
-    renderer.shadowMap.type = THREE.VSMShadowMap
+    // VSMShadowMap can be expensive; use PCFSoftShadowMap for better perf/quality balance
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap
     renderer.outputEncoding = THREE.sRGBEncoding
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 2.5 // Balanced exposure - dark but fog visible
+    renderer.toneMappingExposure = 2.0 // Balanced exposure - dark but fog visible
     renderer.setClearColor(0x000000, 1)
     document.body.appendChild(renderer.domElement)
-    
+
+    const textureLoader = new THREE.TextureLoader()
+    const loader = new GLTFLoader();
+
     // --- NO POST PROCESSING (for performance) ---
     
     // --- ZOOM EFFECT FOR ENEMY ENCOUNTERS ---
@@ -312,13 +458,14 @@ import('@dimforge/rapier3d').then(RAPIER => {
     const zoomFov = 50; // Zoomed in FOV when enemy detected
     let targetFov = defaultFov;
     let currentFov = defaultFov;
-    const zoomSpeed = 6; // How fast to transition FOV
+    const zoomSpeed = 12; // Faster FOV transition for snappier effect
     let zoomResetTimer = 0; // Auto-reset zoom after duration
-    const zoomDuration = 1.5; // How long zoom lasts before auto-reset
+    const zoomDuration = 0.7; // Shorter zoom duration for less jank
     let isZooming = false;
     let zoomTargetPosition = null; // Enemy position to look at
     let lookAtProgress = 0; // 0 to 1 for smooth look-at
     let originalCameraRotation = null; // Store original rotation to restore
+    let isEncounterFrozen = false; // Freeze player movement during encounter zoom
     
     // Global function to trigger zoom effect with camera look-at
     window.triggerZoomEffect = (zoomIn = true, enemyPosition = null) => {
@@ -326,16 +473,31 @@ import('@dimforge/rapier3d').then(RAPIER => {
             targetFov = zoomFov;
             zoomResetTimer = zoomDuration;
             isZooming = true;
+            isEncounterFrozen = true; // Freeze player during encounter
             zoomTargetPosition = enemyPosition.clone();
             lookAtProgress = 0;
-            // Store current camera rotation
+            // Store current camera rotation (clamp and reset Z to prevent gimbal issues)
             originalCameraRotation = {
-                x: camera.rotation.x,
-                y: camera.rotation.y
+                x: Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x)),
+                y: camera.rotation.y,
+                z: camera.rotation.z
             };
+            // Reset Z rotation immediately to prevent flipping
+            camera.rotation.z = 0;
+            // Clear all movement inputs to prevent camera issues
+            moveForward = false;
+            moveBackward = false;
+            moveLeft = false;
+            moveRight = false;
+            moveJump = false;
+            isRunning = false;
+            // Immediately zero out velocity to stop momentum
+            velocityX.current = 0;
+            velocityZ.current = 0;
         } else {
             targetFov = defaultFov;
             isZooming = false;
+            isEncounterFrozen = false; // Unfreeze player
             zoomResetTimer = 0;
             zoomTargetPosition = null;
             lookAtProgress = 0;
@@ -434,13 +596,65 @@ import('@dimforge/rapier3d').then(RAPIER => {
     world.createCollider(cubeShape, cubeBody)
     dynamicBodies.push([cubeMesh, cubeBody])
     // Ball Collider
-    const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(), new THREE.MeshBasicMaterial({color: 0x800080}))
-    sphereMesh.castShadow = true
-    scene.add(sphereMesh)
-    const sphereBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(10, 5, 0).setCanSleep(false))
-    const sphereShape = RAPIER.ColliderDesc.ball(1).setMass(1).setRestitution(1.1)
-    world.createCollider(sphereShape, sphereBody)
-    dynamicBodies.push([sphereMesh, sphereBody])
+    // Load the texture first, then the model to ensure the texture is ready
+
+    textureLoader.load('/assets/materials/soccer-ball/soccer_ball_mat_bcolor.png', (soccerball_diffuseMap) => {
+      // Texture loaded successfully; now load the GLTF
+      loader.load('/assets/models/soccer_ball.gltf', (gltf) => {
+        // Apply the texture to the model's material(s)
+        gltf.scene.traverse((child) => {
+          if (child.isMesh) {
+            child.material = new THREE.MeshStandardMaterial({ map: soccerball_diffuseMap })   ; // Assign as base color map
+            child.material.needsUpdate = true; // Flag for update in the render loop
+          }
+        });
+        const model = gltf.scene;
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            // Optional: scale your model
+            model.scale.set(0.1, 0.1, 0.1);
+            model.position.set(0, 0, 0);
+
+            scene.add(model);
+
+            // STEP 2 — Create Rapier Rigid Body
+            const bodyDesc = RAPIER.RigidBodyDesc
+                .dynamic()
+                .setTranslation(10, 5, 0)
+                .setCanSleep(false);
+
+            const body = world.createRigidBody(bodyDesc);
+
+            // STEP 3 — Choose a collider shape
+            // Simplest: sphere collider approximating the model
+            const collider = RAPIER.ColliderDesc
+                .ball(1)                // radius
+                .setMass(1)
+                .setRestitution(1.1);
+
+            world.createCollider(collider, body);
+
+            // STEP 4 — Save for syncing
+            dynamicBodies.push([model, body]);
+
+      }, undefined, (error) => {
+        console.error('Error loading GLTF:', error);
+      });
+    });
+    // const sphereMesh = new THREE.Mesh(new THREE.SphereGeometry(), new THREE.MeshStandardMaterial({
+    //   map: soccerball_diffuseMap
+    // }))
+    // sphereMesh.castShadow = true
+    // scene.add(sphereMesh)
+    // const sphereBody = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(10, 5, 0).setCanSleep(false))
+    // const sphereShape = RAPIER.ColliderDesc.ball(1).setMass(1).setRestitution(1.1)
+    // world.createCollider(sphereShape, sphereBody)
+    // dynamicBodies.push([sphereMesh, sphereBody])
     // Cylinder Collider
     const cylinderMesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2, 16), new THREE.MeshBasicMaterial({color: 0x800080}))
     cylinderMesh.castShadow = true
@@ -451,10 +665,97 @@ import('@dimforge/rapier3d').then(RAPIER => {
     dynamicBodies.push([cylinderMesh, cylinderBody])
    
     console.log(dynamicBodies)
+    // --- PICKUP INTERACTION ---
+    // Allow player to pick up dynamic bodies by pointing at them and holding LMB
+    let grabbedObject = null; // { mesh, body, origType, offset, distance }
+    const pickupReach = 5.0; // maximum distance (meters) at which pickup icon appears and pick succeeds
+
+    function getDynamicBodyForMesh(mesh) {
+      // Walk up the parent chain to find a matching dynamic mesh entry
+      let node = mesh;
+      while (node) {
+        for (const [m, b] of dynamicBodies) {
+          if (m === node) return [m, b];
+        }
+        node = node.parent;
+      }
+      return null;
+    }
+
+    function tryPick(event) {
+      // Allow pick with left mouse button or primary button; pointer lock not strictly required
+      if (event && typeof event.button === 'number' && event.button !== 0) return;
+
+      // Cast a ray forward from the camera center
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      const origin = camera.position.clone();
+      const ray = new THREE.Raycaster(origin, dir.normalize(), 0, 6); // 6 units reach
+
+      const candidates = dynamicBodies.map(d => d[0]);
+      const hits = ray.intersectObjects(candidates, true);
+      if (!hits || hits.length === 0) {
+        //console.log('tryPick: no hits');
+        return;
+      }
+
+      const hit = hits[0];
+      const found = getDynamicBodyForMesh(hit.object);
+      if (!found) {
+        //console.log('tryPick: hit but no dynamic body found for', hit.object);
+        return;
+      }
+
+      const [mesh, body] = found;
+      try {
+        // Set to kinematic so we can move it directly while held
+        body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+
+        grabbedObject = {
+          mesh,
+          body,
+          // store offset from hit point to object's origin so it holds naturally
+          offset: new THREE.Vector3().subVectors(hit.point, mesh.position),
+          distance: hit.distance || 3
+        };
+
+        console.log('Picked up object:', mesh.name || mesh.uuid, 'distance', grabbedObject.distance.toFixed(2));
+        // Slight visual feedback
+        try { mesh.scale.multiplyScalar(1.02); } catch (e) {}
+      } catch (e) {
+        console.warn('Pickup failed', e);
+      }
+    }
+
+    function releasePick(applyThrow = true) {
+      if (!grabbedObject) return;
+      const { mesh, body } = grabbedObject;
+      try {
+        // restore dynamic body
+        body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+
+        // apply a small throw velocity in camera forward if requested
+        if (applyThrow) {
+          const forward = new THREE.Vector3();
+          camera.getWorldDirection(forward);
+          const speed = 6; // toss speed
+          body.setLinvel({ x: forward.x * speed, y: forward.y * speed + 1.5, z: forward.z * speed }, true);
+        }
+      } catch (e) {
+        console.warn('Release failed', e);
+      }
+
+      try { mesh.scale.multiplyScalar(1 / 1.02); } catch (e) {}
+      grabbedObject = null;
+    }
+
+    // Mouse events for picking
+    document.addEventListener('mousedown', tryPick);
+    document.addEventListener('mouseup', () => releasePick(true));
     // --- GROUND PHYSICS ---
     // 1. Create the fixed body (Use the builder .fixed())
     const groundBodyDesc = RAPIER.RigidBodyDesc.fixed()
-        .setTranslation(0, 1, 0);
+        .setTranslation(0, -1, 0);
     const groundBody = world.createRigidBody(groundBodyDesc);
     // 2. Create the collider (Make it THICK so you can't tunnel through it)
     // 250 width, 2 height (4 units thick), 250 depth
@@ -516,13 +817,29 @@ import('@dimforge/rapier3d').then(RAPIER => {
       }
       
       // Flash screen red for damage feedback
-      const vignette = document.getElementById('vignette');
-      if (vignette) {
-        vignette.style.boxShadow = 'inset 0 0 150px rgba(255, 0, 0, 0.6)';
-        setTimeout(() => {
-          vignette.style.boxShadow = ''; // Reset to default
-        }, 200);
-      }
+        const vignette = document.getElementById('vignette');
+        if (vignette) {
+          vignette.style.boxShadow = 'inset 0 0 150px rgba(255, 0, 0, 0.6)';
+          setTimeout(() => {
+            vignette.style.boxShadow = ''; // Reset to default
+          }, 200);
+        }
+
+        // Full-screen red flash overlay (created on demand)
+        ensureDamageOverlay();
+        if (damageOverlay) {
+          // quick flash
+          damageOverlay.style.opacity = '0.72';
+          // fade back out
+          setTimeout(() => { damageOverlay.style.opacity = '0'; }, 160);
+        }
+
+        // Small screen shake on hit
+        try {
+          screenShake(220, 6);
+        } catch (e) {
+          // ignore if any issue with DOM
+        }
       
       console.log('Player took damage! Health:', playerHealth);
       
@@ -581,7 +898,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
         font-family: 'Raven Scream', serif;
       `;
       title.textContent = 'YOU DIED';
-      
+
       const subtitle = document.createElement('p');
       subtitle.style.cssText = `
         color: #666;
@@ -590,7 +907,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
         font-family: 'Raven Scream', serif;
       `;
       subtitle.textContent = 'The darkness consumed you...';
-      
+
+      // Return to Menu button
       const button = document.createElement('button');
       button.style.cssText = `
         margin-top: 3rem;
@@ -619,10 +937,41 @@ import('@dimforge/rapier3d').then(RAPIER => {
         e.stopPropagation();
         window.location.href = '/index.html';
       };
-      
+
+      // Restart button
+      const restartButton = document.createElement('button');
+      restartButton.style.cssText = `
+        margin-top: 1.5rem;
+        padding: 1rem 3rem;
+        font-size: 1.5rem;
+        font-family: 'Raven Scream', serif;
+        background: transparent;
+        border: 2px solid #8B0000;
+        color: #8B0000;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      `;
+      restartButton.textContent = 'RESTART';
+      restartButton.onmouseenter = () => {
+        restartButton.style.background = '#8B0000';
+        restartButton.style.color = '#fff';
+        restartButton.style.boxShadow = '0 0 20px rgba(139, 0, 0, 0.5)';
+      };
+      restartButton.onmouseleave = () => {
+        restartButton.style.background = 'transparent';
+        restartButton.style.color = '#8B0000';
+        restartButton.style.boxShadow = 'none';
+      };
+      restartButton.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.location.reload();
+      };
+
       gameOverDiv.appendChild(title);
       gameOverDiv.appendChild(subtitle);
       gameOverDiv.appendChild(button);
+      gameOverDiv.appendChild(restartButton);
       document.body.appendChild(gameOverDiv);
     };
     
@@ -630,56 +979,85 @@ import('@dimforge/rapier3d').then(RAPIER => {
     let waterSplash = null;
     let floorMesh = null;
     
-    // GROUND_PLANE with PBR textures (diffuse only since EXR not supported by TextureLoader)
-    const textureLoader = new THREE.TextureLoader()
+    // GROUND_PLANE with PBR textures 
     
-    // Create bump texture by converting diffuse to grayscale
+    
+    // Create bump texture by converting diffuse to grayscale.
+    // Use a larger working size to avoid blocky artifacts when the map is repeated.
     const createBumpTexture = (diffuseTexture) => {
+      const srcW = diffuseTexture.image?.width || 2048;
+      const srcH = diffuseTexture.image?.height || 2048;
+      // Target bump size: clamp to a reasonable max to keep GPU cost moderate
+      const size = Math.min(2048, Math.max(512, Math.min(srcW, srcH)));
+
       const canvas = document.createElement('canvas');
-      const size = 512;
       canvas.width = size;
       canvas.height = size;
       const ctx = canvas.getContext('2d');
-      
-      // Draw diffuse texture to canvas
+
+      // Draw diffuse texture to a temporary canvas at original resolution then resample
       const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = diffuseTexture.image.width;
-      tempCanvas.height = diffuseTexture.image.height;
+      tempCanvas.width = srcW;
+      tempCanvas.height = srcH;
       const tempCtx = tempCanvas.getContext('2d');
-      tempCtx.drawImage(diffuseTexture.image, 0, 0);
-      
+      tempCtx.drawImage(diffuseTexture.image, 0, 0, srcW, srcH);
+
       // Scale to bump size and convert to grayscale
       ctx.drawImage(tempCanvas, 0, 0, size, size);
       const imageData = ctx.getImageData(0, 0, size, size);
       const data = imageData.data;
-      
+
       for (let i = 0; i < data.length; i += 4) {
         const gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
         data[i] = gray;
         data[i + 1] = gray;
         data[i + 2] = gray;
       }
-      
+
       ctx.putImageData(imageData, 0, 0);
-      
+
       const bumpTex = new THREE.CanvasTexture(canvas);
       bumpTex.wrapS = THREE.RepeatWrapping;
       bumpTex.wrapT = THREE.RepeatWrapping;
-      bumpTex.repeat.set(8, 8);
+      // Match the diffuse repeat so tiling stays consistent
+      try {
+        bumpTex.repeat.copy(diffuseTexture.repeat || new THREE.Vector2(8, 8));
+      } catch (e) {
+        bumpTex.repeat.set(8, 8);
+      }
+      // Let the renderer generate mipmaps for smoother LOD transitions
+      bumpTex.generateMipmaps = true;
+      bumpTex.minFilter = THREE.LinearMipmapLinearFilter;
+      bumpTex.magFilter = THREE.LinearFilter;
       return bumpTex;
     };
     
     textureLoader.load('/assets/materials/groundPBR/rocky_terrain_02_diff_4k.jpg', (texture) => {
+      // Ensure proper wrapping and color space
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
       texture.repeat.set(8, 8);
-      
+      texture.encoding = THREE.sRGBEncoding;
+      // Encourage trilinear filtering and mipmaps for less blocky look when viewed at glancing angles
+      texture.generateMipmaps = true;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      try {
+        // Try to set max anisotropy if available (improves sharpness at oblique angles)
+        if (renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function') {
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        } else if (renderer.capabilities && renderer.capabilities.getMaxAnisotropy) {
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy;
+        }
+      } catch (e) {}
+
       const bumpMap = createBumpTexture(texture);
-      
+
       const floor_material = new THREE.MeshStandardMaterial({
         map: texture,
         bumpMap: bumpMap,
-        bumpScale: 5.0,
+        // Reduce bump intensity to avoid hard, blocky shading
+        bumpScale: 1.8,
         roughness: 0.8,
         metalness: 0.0,
         side: THREE.DoubleSide
@@ -710,15 +1088,15 @@ import('@dimforge/rapier3d').then(RAPIER => {
     //   console.error('Failed to load ground texture:', err);
     // });
     // Optional: Add some walls for testing
-    const wallGeometry = new THREE.BoxGeometry(1, 20, 100);
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc,
-        roughness: 0.5,
-        metalness: 1.0});
-    const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-    wall.position.set(10, 2.5, 0);
-    scene.add(wall);
-    const wallColliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 10, 50).setTranslation(10, 2.5, 0);
-    world.createCollider(wallColliderDesc);
+    // const wallGeometry = new THREE.BoxGeometry(1, 20, 100);
+    // const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc,
+    //     roughness: 0.5,
+    //     metalness: 1.0});
+    // const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+    // wall.position.set(10, 2.5, 0);
+    // scene.add(wall);
+    // const wallColliderDesc = RAPIER.ColliderDesc.cuboid(0.5, 10, 50).setTranslation(10, 2.5, 0);
+    // world.createCollider(wallColliderDesc);
     // BUSHES
     Bushes()
     // CAMERA RAYCAST
@@ -729,6 +1107,14 @@ import('@dimforge/rapier3d').then(RAPIER => {
     controls.pointerSpeed = 0.5;
     controls.minPolarAngle = 0; // Allow looking straight up
     controls.maxPolarAngle = Math.PI; // Allow looking straight down
+    
+    // Block mouse look during encounter freeze by capturing mousemove events
+    document.addEventListener('mousemove', (event) => {
+        if (isEncounterFrozen) {
+            event.stopImmediatePropagation();
+        }
+    }, true); // Use capture phase to intercept before PointerLockControls
+    
     const menu = document.getElementById('escape-container')
     const crosshair = document.getElementById('crosshair')
     
@@ -843,6 +1229,10 @@ import('@dimforge/rapier3d').then(RAPIER => {
     let flashlightIntensity = 100.0; // Store original intensity
     
     const onKeyDown = (e) => {
+    // Block movement input during encounter freeze
+    if (isEncounterFrozen && ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight'].includes(e.code)) {
+      return;
+    }
     switch (e.code) {
       case 'KeyW': moveForward = true; break;
       case 'KeyS': moveBackward = true; break;
@@ -945,6 +1335,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
         
         joystickZone.addEventListener('touchmove', (e) => {
             e.preventDefault();
+            // Block movement during encounter freeze
+            if (isEncounterFrozen) return;
             for (let touch of e.changedTouches) {
                 if (touch.identifier === joystickTouchId) {
                     // Calculate offset from center
@@ -1008,6 +1400,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
         
         lookZone.addEventListener('touchmove', (e) => {
             e.preventDefault();
+            // Block camera rotation during encounter freeze
+            if (isEncounterFrozen) return;
             for (let touch of e.changedTouches) {
                 if (touch.identifier === lookTouchId) {
                     const dx = touch.clientX - lastLookPos.x;
@@ -1070,6 +1464,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
             flashlightOn = !flashlightOn;
             flashlightJustToggled = true;
             spotLight.intensity = flashlightOn ? flashlightIntensity : 0;
+            
             btnFlashlight.classList.toggle('active', flashlightOn);
             playButtonPress(flashlightOn ? 0 : -300);
         }, { passive: false });
@@ -1131,7 +1526,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // ----------------------------------------------------------------- //
     // PROPS
     /*FLASHLIGHT - Primary light source in darkness*/
-    const flashlightTexture = textureLoader.load('/assets/materials/flashlight_texture.jpg');
+    
     // SpotLight params: color, intensity, distance, angle, penumbra, decay
     // Realistic flashlight: warm white, moderate intensity, natural falloff
     const spotLight = new THREE.SpotLight( 
@@ -1142,7 +1537,6 @@ import('@dimforge/rapier3d').then(RAPIER => {
         0.7,        // Softer penumbra edge (0-1, higher = softer)
         1.5         // Physical light decay (inverse square)
     );
-    spotLight.map = flashlightTexture; // Project texture through the light
     spotLight.position.set( 0, 0, 0 );
     spotLight.target = new THREE.Object3D( 0, 0, 0 );
     // const spotLightHelper = new THREE.SpotLightHelper( spotLight );
@@ -1150,8 +1544,9 @@ import('@dimforge/rapier3d').then(RAPIER => {
    
     spotLight.castShadow = true;
    
-    spotLight.shadow.mapSize.width = 512;
-    spotLight.shadow.mapSize.height = 512;    
+    // Lower shadow map resolution to reduce shadow rendering cost
+    spotLight.shadow.mapSize.width = 256;
+    spotLight.shadow.mapSize.height = 256;    
     spotLight.shadow.camera.near = 0.5;
     spotLight.shadow.camera.far = 80;  // Match light distance
     spotLight.shadow.camera.fov = 35;  // Match beam angle
@@ -1167,9 +1562,10 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // RAIN SYSTEM
     const rain = new Rain(scene, camera, 500)
     rain.init()
-    rain.setIntensity(2) // 0 = off, 1 = light, 2 = medium, 3 = heavy
+    rain.setIntensity(3) // 0 = off, 1 = light, 2 = medium, 3 = heavy
     
-    const loader = new GLTFLoader();
+    // Create circular end cap with flashlight texture projection
+   
    
     loader.load('/assets/models/flashlight.glb', (gltf) => {
       const flashlight = gltf.scene.children[0]
@@ -1181,10 +1577,11 @@ import('@dimforge/rapier3d').then(RAPIER => {
       camera.add(flashlight)
       
       // Position spotlight at the front of the flashlight mesh
-      spotLight.position.set(1, -0.8, -1.5); // Slightly in front of flashlight
-      spotLight.target.position.set(1, -0.8, -10); // Point forward into the scene
+      spotLight.position.set(1, -0.8, -1.5);
+      spotLight.target.position.set(1, -0.8, -10);
       camera.add(spotLight)
       camera.add(spotLight.target)
+    
     })
      
     const clock = new THREE.Clock()
@@ -1193,7 +1590,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
     document.body.appendChild(stats.dom);
     // Character setup
-    const characterHeight = 2;
+    const characterHeight = 8;
     const characterRadius = 0.5;
     const characterBody = world.createRigidBody(
       new RAPIER.RigidBodyDesc(RAPIER.RigidBodyType.kinematicPositionBased)
@@ -1220,8 +1617,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
     );
     scene.add(characterMesh);
   // --- CHARACTER MOVEMENT CONSTANTS ---
-  const moveSpeed = 10;
-  const runSpeed = 22; // Speed when running
+  const moveSpeed = 8;
+  const runSpeed = 15; // Speed when running
   const crouchSpeed = 4; // Slower when crouching
   const jumpForce = 12;
   let verticalVelocity = 0;
@@ -1296,49 +1693,49 @@ import('@dimforge/rapier3d').then(RAPIER => {
   window.__threeScene = scene;
   
   // --- DOOR TOGGLE FUNCTION ---
-  const toggleNearestDoor = (doors) => {
-    const playerPos = characterBody.translation();
-    let nearestDoor = null;
-    let minDistance = 5; // Max distance to toggle door
-    for (const door of doors) {
-      const doorPos = door.body.translation();
-      const distance = Math.sqrt((doorPos.x - playerPos.x) ** 2 + (doorPos.z - playerPos.z) ** 2);
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearestDoor = door;
-      }
-    }
-    if (nearestDoor) {
-      nearestDoor.open = !nearestDoor.open;
-      if (nearestDoor.open) {
-        // Open: rotate 90 degrees around hinge
-        const angle = Math.PI / 2;
-        // Hinge at left edge of door
-        const perpendicular = new THREE.Vector3(Math.cos(nearestDoor.rotationY), 0, -Math.sin(nearestDoor.rotationY));
-        const hinge = new THREE.Vector3().copy(nearestDoor.originalPosition).add(perpendicular.clone().multiplyScalar(-2.4));
-        // Relative position
-        const relX = nearestDoor.originalPosition.x - hinge.x;
-        const relZ = nearestDoor.originalPosition.z - hinge.z;
-        // Rotate around Y
-        const newRelX = relX * Math.cos(angle) - relZ * Math.sin(angle);
-        const newRelZ = relX * Math.sin(angle) + relZ * Math.cos(angle);
-        const newX = hinge.x + newRelX;
-        const newZ = hinge.z + newRelZ;
-        nearestDoor.body.setNextKinematicTranslation({ x: newX, y: nearestDoor.originalPosition.y, z: newZ });
-        nearestDoor.mesh.position.set(newX, nearestDoor.originalPosition.y, newZ);
-        nearestDoor.mesh.rotation.y = nearestDoor.rotationY + angle;
-        const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, nearestDoor.rotationY + angle, 0));
-        nearestDoor.body.setNextKinematicRotation(quat);
-      } else {
-        // Close: back to original
-        nearestDoor.body.setNextKinematicTranslation(nearestDoor.originalPosition);
-        nearestDoor.mesh.position.copy(nearestDoor.originalPosition);
-        nearestDoor.mesh.rotation.y = nearestDoor.rotationY;
-        const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, nearestDoor.rotationY, 0));
-        nearestDoor.body.setNextKinematicRotation(quat);
-      }
-    }
-  };
+  // const toggleNearestDoor = (doors) => {
+  //   const playerPos = characterBody.translation();
+  //   let nearestDoor = null;
+  //   let minDistance = 5; // Max distance to toggle door
+  //   for (const door of doors) {
+  //     const doorPos = door.body.translation();
+  //     const distance = Math.sqrt((doorPos.x - playerPos.x) ** 2 + (doorPos.z - playerPos.z) ** 2);
+  //     if (distance < minDistance) {
+  //       minDistance = distance;
+  //       nearestDoor = door;
+  //     }
+  //   }
+  //   if (nearestDoor) {
+  //     nearestDoor.open = !nearestDoor.open;
+  //     if (nearestDoor.open) {
+  //       // Open: rotate 90 degrees around hinge
+  //       const angle = Math.PI / 2;
+  //       // Hinge at left edge of door
+  //       const perpendicular = new THREE.Vector3(Math.cos(nearestDoor.rotationY), 0, -Math.sin(nearestDoor.rotationY));
+  //       const hinge = new THREE.Vector3().copy(nearestDoor.originalPosition).add(perpendicular.clone().multiplyScalar(-2.4));
+  //       // Relative position
+  //       const relX = nearestDoor.originalPosition.x - hinge.x;
+  //       const relZ = nearestDoor.originalPosition.z - hinge.z;
+  //       // Rotate around Y
+  //       const newRelX = relX * Math.cos(angle) - relZ * Math.sin(angle);
+  //       const newRelZ = relX * Math.sin(angle) + relZ * Math.cos(angle);
+  //       const newX = hinge.x + newRelX;
+  //       const newZ = hinge.z + newRelZ;
+  //       nearestDoor.body.setNextKinematicTranslation({ x: newX, y: nearestDoor.originalPosition.y, z: newZ });
+  //       nearestDoor.mesh.position.set(newX, nearestDoor.originalPosition.y, newZ);
+  //       nearestDoor.mesh.rotation.y = nearestDoor.rotationY + angle;
+  //       const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, nearestDoor.rotationY + angle, 0));
+  //       nearestDoor.body.setNextKinematicRotation(quat);
+  //     } else {
+  //       // Close: back to original
+  //       nearestDoor.body.setNextKinematicTranslation(nearestDoor.originalPosition);
+  //       nearestDoor.mesh.position.copy(nearestDoor.originalPosition);
+  //       nearestDoor.mesh.rotation.y = nearestDoor.rotationY;
+  //       const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, nearestDoor.rotationY, 0));
+  //       nearestDoor.body.setNextKinematicRotation(quat);
+  //     }
+  //   }
+  // };
   
   // ** 1. AUDIO MANAGEMENT FUNCTION (Safe from input crashes) **
   const audioManager = (isMoving) => {
@@ -1392,44 +1789,50 @@ import('@dimforge/rapier3d').then(RAPIER => {
           if (zoomResetTimer <= 0) {
               targetFov = defaultFov;
               isZooming = false;
+              isEncounterFrozen = false; // Unfreeze player when zoom ends
               zoomTargetPosition = null;
               lookAtProgress = 0;
               originalCameraRotation = null;
           }
       }
       
-      // Smooth FOV transition
-      if (Math.abs(currentFov - targetFov) > 0.1) {
-          currentFov += (targetFov - currentFov) * zoomSpeed * delta;
+        // Smooth FOV transition (fixed lerp rate for stability)
+        if (Math.abs(currentFov - targetFov) > 0.1) {
+          currentFov = THREE.MathUtils.lerp(currentFov, targetFov, Math.min(1, zoomSpeed * delta));
           camera.fov = currentFov;
           camera.updateProjectionMatrix();
-      }
+        }
       
-      // Camera look-at enemy during zoom effect
-      if (isZooming && zoomTargetPosition && lookAtProgress < 1) {
-          lookAtProgress = Math.min(1, lookAtProgress + delta * 3); // Take ~0.33 seconds to look
-          
-          // Calculate direction to enemy - reuse temp vectors
+        // Camera look-at enemy during zoom effect
+        if (isZooming && zoomTargetPosition && lookAtProgress < 1) {
+          lookAtProgress = Math.min(1, lookAtProgress + delta * 4.5); // Faster look-at
+          // Calculate the direction vector from camera to enemy
           _camPos.copy(camera.position);
           _toEnemy.copy(zoomTargetPosition).sub(_camPos);
-          const targetYaw = Math.atan2(-_toEnemy.x, -_toEnemy.z);
-          const horizontalDist = Math.sqrt(_toEnemy.x * _toEnemy.x + _toEnemy.z * _toEnemy.z);
-          const targetPitch = Math.atan2(_toEnemy.y - 1, horizontalDist); // Look slightly down at enemy
-          
-          // Smoothly interpolate camera rotation
-          const t = lookAtProgress * lookAtProgress * (3 - 2 * lookAtProgress); // Smoothstep
+          // Calculate the target quaternion to look at the enemy
+          const targetQuat = new THREE.Quaternion();
+          const up = new THREE.Vector3(0, 1, 0);
+          // Use lookAt to get the target rotation (no roll)
+          const lookAtMatrix = new THREE.Matrix4();
+          lookAtMatrix.lookAt(_camPos, zoomTargetPosition, up);
+          targetQuat.setFromRotationMatrix(lookAtMatrix);
+          // Interpolate from the original rotation to the target lookAt rotation
           if (originalCameraRotation) {
-              // Interpolate Y rotation (yaw) - handle wraparound
-              let yawDiff = targetYaw - originalCameraRotation.y;
-              while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
-              while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
-              camera.rotation.y = originalCameraRotation.y + yawDiff * t;
-              
-              // Interpolate X rotation (pitch)
-              camera.rotation.x = originalCameraRotation.x + (targetPitch - originalCameraRotation.x) * t;
-              camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+            // Build a quaternion from the original rotation (preserve roll=0)
+            const startQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+              originalCameraRotation.x,
+              originalCameraRotation.y,
+              0 // always zero roll
+            ));
+            // Slerp between start and target
+            const t = lookAtProgress * lookAtProgress * (3 - 2 * lookAtProgress); // Smoothstep
+            camera.quaternion.copy(startQuat).slerp(targetQuat, t);
+            // Force roll to zero after slerp
+            const euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+            euler.z = 0;
+            camera.quaternion.setFromEuler(euler);
           }
-      }
+        }
       
       // --- CROUCH HANDLING ---
       const targetHeight = moveCrouch ? crouchingHeight : standingHeight;
@@ -1606,16 +2009,44 @@ import('@dimforge/rapier3d').then(RAPIER => {
       // scene.add(new THREE.ArrowHelper(raycaster.ray.direction, raycaster.ray.origin, 300, 0xff0000) );
  
       const intersects = raycaster.intersectObjects(
-        [cubeMesh, sphereMesh, cylinderMesh],
+        [cubeMesh, cylinderMesh],
         false
       )
+      // Only show grab cursor / pickup icon if the nearest hit is within `pickupReach`
       if (intersects.length) {
-        dynamicBodies.forEach((b) => {
-          b[0] === intersects[0].object && b[1].applyImpulse(new RAPIER.Vector3(0, 3, 0), true)
-        })
+        const hit = intersects[0];
+        // require both within reach and the hit object maps to a dynamic body
+        const withinReach = typeof hit.distance === 'number' && hit.distance <= pickupReach;
+        const candidate = getDynamicBodyForMesh(hit.object);
+        if (withinReach && candidate) {
+          try { if (renderer && renderer.domElement) renderer.domElement.style.cursor = 'grab'; } catch (e) {}
+          try { showPickupIcon(); } catch (e) {}
+        } else {
+          try { if (renderer && renderer.domElement) renderer.domElement.style.cursor = ''; } catch (e) {}
+          try { hidePickupIcon(); } catch (e) {}
+        }
+      } else {
+        try { if (renderer && renderer.domElement) renderer.domElement.style.cursor = ''; } catch (e) {}
+        try { hidePickupIcon(); } catch (e) {}
       }
       // Sync other dynamic bodies (Spheres, cubes)
       for (const [mesh, body] of dynamicBodies) {
+          // If this object is currently grabbed, drive it to the camera hold point
+          if (typeof grabbedObject !== 'undefined' && grabbedObject && mesh === grabbedObject.mesh) {
+            const forward = new THREE.Vector3();
+            camera.getWorldDirection(forward);
+            const holdTarget = new THREE.Vector3().copy(camera.position).add(forward.multiplyScalar(grabbedObject.distance || 3));
+            // position the object's origin so the original hit point aligns with the hold target
+            const desiredPos = new THREE.Vector3().subVectors(holdTarget, grabbedObject.offset || new THREE.Vector3());
+            try {
+              body.setNextKinematicTranslation({ x: desiredPos.x, y: desiredPos.y, z: desiredPos.z });
+            } catch (e) {}
+            mesh.position.copy(desiredPos);
+            const r = body.rotation();
+            mesh.quaternion.set(r.x, r.y, r.z, r.w);
+            continue;
+          }
+
           const t = body.translation();
           const r = body.rotation();
           mesh.position.set(t.x, t.y, t.z);
@@ -1660,16 +2091,35 @@ import('@dimforge/rapier3d').then(RAPIER => {
         
         // Handle collision with enemy - push player away and deal damage
         if (enemyCollision && enemyCollision.colliding && enemyCollision.push) {
-          // Deal damage to player (only when enemy is chasing/attacking)
-          if (enemy.currentState === enemy.states.CHASE) {
+          // Deal damage to player (only when enemy attacks or is chasing)
+          if (enemyCollision.isAttack) {
+            // Attack hit - deal damage and apply strong knockback
+            takeDamage();
+            playDeadlyStrike(audioContext, masterGain);
+            enemy._lastAttackHit = true;
+          } else if (enemy.currentState === enemy.states.CHASE) {
+            // Regular collision damage while chasing
             takeDamage();
           }
           
           const currentPlayerPos = characterBody.translation();
+          
+          // Apply knockback - much stronger for attacks
+          let knockbackMultiplier = enemyCollision.isAttack ? 1.0 : delta;
+          
+          // For attacks, also add to player velocity for sustained knockback
+          if (enemyCollision.isAttack) {
+            // Apply strong velocity knockback that will persist
+            velocityX.current += enemyCollision.push.x * 0.5;
+            velocityZ.current += enemyCollision.push.z * 0.5;
+            // Add upward velocity for impact feel
+            verticalVelocity = Math.max(verticalVelocity, 8);
+          }
+          
           const pushVector = new RAPIER.Vector3(
-            enemyCollision.push.x * delta,
-            enemyCollision.push.y * delta,
-            enemyCollision.push.z * delta
+            enemyCollision.push.x * knockbackMultiplier,
+            enemyCollision.push.y * knockbackMultiplier,
+            enemyCollision.push.z * knockbackMultiplier
           );
           
           // Compute collision-safe push movement
@@ -1681,6 +2131,16 @@ import('@dimforge/rapier3d').then(RAPIER => {
             y: currentPlayerPos.y + correctedPush.y,
             z: currentPlayerPos.z + correctedPush.z
           });
+        }
+      }
+      // Play hit-miss sound if attack animation ended and no hit occurred
+      for (const enemy of enemies) {
+        if (enemy.attackData && enemy.attackData.justEnded) {
+          if (!enemy._lastAttackHit) {
+            playHitMiss(audioContext, masterGain);
+          }
+          enemy.attackData.justEnded = false;
+          enemy._lastAttackHit = false;
         }
       }
       flashlightJustToggled = false; // Reset after passing to AI

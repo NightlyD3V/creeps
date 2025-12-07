@@ -48,11 +48,11 @@ export class EnemyAI {
 
         // Detection ranges - balanced with fog (fogFar = 60, so player sees ~30-40 units clearly)
         this.detection = {
-            sightRange: 25,            // Can see about as far as player through fog
-            sightAngle: Math.PI * 0.7, // 126° field of view (wider peripheral vision)
-            hearingRange: 30,          // Can hear running from moderate distance
+            sightRange: 20,            // Increased forward sight range
+            sightAngle: Math.PI * 0.35, // ~63° field of view (narrower, more forward-focused)
+            hearingRange: 20,          // Can hear running from moderate distance (increased)
             flashlightClickRange: 20,  // Can hear flashlight click from this distance
-            chaseRange: 50             // Will chase further once engaged
+            chaseRange: 20             // Will chase further once engaged
         };
 
         // State management
@@ -62,9 +62,24 @@ export class EnemyAI {
             INVESTIGATE: 'investigate',
             CHASE: 'chase',
             SEARCH: 'search',
-            RETURN: 'return'
+            RETURN: 'return',
+            ATTACK: 'attack'          // Attack state when close to player
         };
         this.currentState = this.states.PATROL;
+        
+        // Attack state tracking
+        this.attackData = {
+            range: 3.0,               // Distance to trigger attack
+            cooldown: 1.5,            // Time between attacks
+            timer: 0,                 // Current cooldown timer
+            isAttacking: false,       // Currently in attack animation
+            knockbackStrength: 100,    // How hard to push player (strong knockback)
+            damage: 1                 // Damage per hit
+        };
+
+        // Chase timeout tracking
+        this.chaseVisibleTimer = 0;
+        this.chaseVisibleTimeout = 4; // seconds to chase before searching another area
         
         // Alert state tracking
         this.alertData = {
@@ -105,7 +120,7 @@ export class EnemyAI {
 
         this.prediction = {
             chaseLeadTime: 1.2,      // Predicts further ahead
-            maxLeadDistance: 20      // Can lead target by more
+            maxLeadDistance: 14      // Can lead target by more
         };
 
         // Timers
@@ -119,6 +134,10 @@ export class EnemyAI {
             sameDistance: 0,  // Track how long distance to player stays the same
             alert: 0                  // Alert state timer
         };
+
+        // Track search attempts
+        this.searchAttempts = 0;
+        this.maxSearchAttempts = 3;
         
         // Alert sound
         this.alertSound = null;
@@ -141,6 +160,39 @@ export class EnemyAI {
         // Visual setup - create placeholder, then load skeleton model
         this.mesh = new THREE.Group();
         this.scene.add(this.mesh);
+
+        // Create a persistent vision cone helper attached to the root mesh
+        // (so it is visible regardless of whether the GLTF model is used)
+        try {
+            const wedgeLength = this.detection?.sightRange || 50;
+            const wedgeAngle = this.detection?.sightAngle || Math.PI * 0.7;
+            const wedgeShape = new THREE.Shape();
+            wedgeShape.moveTo(0, 0);
+            const segments = 24;
+            const halfAngle = wedgeAngle * 0.5;
+            for (let i = 0; i <= segments; i++) {
+                const angle = -halfAngle + (i / segments) * wedgeAngle;
+                const x = Math.sin(angle) * wedgeLength;
+                const y = Math.cos(angle) * wedgeLength;
+                wedgeShape.lineTo(x, y);
+            }
+            wedgeShape.lineTo(0, 0);
+            const wedgeGeometry = new THREE.ShapeGeometry(wedgeShape);
+            const wedgeMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00ff00,
+                transparent: true,
+                opacity: 0.12,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            this.visionCone = new THREE.Mesh(wedgeGeometry, wedgeMaterial);
+            this.visionCone.rotation.x = Math.PI / 2;
+            this.visionCone.position.set(0, 0.15, 0);
+            this.mesh.add(this.visionCone);
+        } catch (e) {
+            console.warn('Failed to create vision cone helper:', e);
+            this.visionCone = null;
+        }
         this.skeletonModel = null;
         this.mixer = null;
         this.crawlAction = null;
@@ -204,12 +256,41 @@ export class EnemyAI {
     setupAudio() {
         // Create positional audio for wailing sound
         this.audio.wailingSound = new THREE.PositionalAudio(this.audioListener);
-        
+
+        // Create positional audio for heavy walking footsteps
+        this.audio.footstepSound = new THREE.PositionalAudio(this.audioListener);
+
         // Create alert sound (short growl to warn player)
         this.alertSound = new THREE.PositionalAudio(this.audioListener);
-        
+
         // Load the wailing sound (use absolute path from root)
         const audioLoader = new THREE.AudioLoader();
+                // Load heavy walking footstep sound
+                audioLoader.load('/assets/sounds/fx/heavy-walking-footsteps.mp3', (buffer) => {
+                    this.audio.footstepSound.setBuffer(buffer);
+                    this.audio.footstepSound.setRefDistance(8);   // Footsteps are close but heavy
+                    this.audio.footstepSound.setMaxDistance(40);
+                    this.audio.footstepSound.setRolloffFactor(1.2);
+                    this.audio.footstepSound.setDistanceModel('exponential');
+                    this.audio.footstepSound.setLoop(false); // Play once per step
+                    this.audio.footstepSound.setVolume(2.2); // Louder footsteps
+                    this.audio.footstepLoaded = true;
+                    console.log('Heavy walking footstep sound loaded');
+                }, undefined, (error) => {
+                    console.error('Error loading heavy walking footstep sound:', error);
+                });
+            // Track if footsteps are paused due to zoom effect
+            this.footstepsPausedForZoom = false;
+
+                // Listen for zoom effect events to pause/resume footsteps
+                if (typeof window !== 'undefined') {
+                    window.addEventListener('zoomEffectActive', (e) => {
+                        this.footstepsPausedForZoom = !!(e && e.detail && e.detail.active);
+                        if (this.footstepsPausedForZoom && this.audio.footstepSound && this.audio.footstepSound.isPlaying) {
+                            this.audio.footstepSound.pause && this.audio.footstepSound.pause();
+                        }
+                    });
+                }
         audioLoader.load('/assets/sounds/fx/wailing-creature.mp3', (buffer) => {
             this.audio.wailingSound.setBuffer(buffer);
             this.audio.wailingSound.setRefDistance(10);   // Distance at which volume is 100%
@@ -242,6 +323,7 @@ export class EnemyAI {
         
         // Attach audio to the mesh so it follows the enemy
         this.mesh.add(this.audio.wailingSound);
+        this.mesh.add(this.audio.footstepSound);
         this.mesh.add(this.alertSound);
         
         // Create non-positional audio for tension/chase music (plays at full volume regardless of distance)
@@ -301,8 +383,8 @@ export class EnemyAI {
             // Add glowing red eyes to the skeleton head
             this.addGlowingEyes();
             
-            // Try to load the crawl animation
-            this.loadCrawlAnimation(loader, gltf);
+            // Try to load animations
+            this.loadAnimations(loader, gltf);
             
         }, undefined, (error) => {
             console.error('Error loading skeleton model:', error);
@@ -313,7 +395,21 @@ export class EnemyAI {
         });
     }
     
-    loadCrawlAnimation(loader, skeletonGltf) {
+    loadAnimations(loader, skeletonGltf) {
+        // Create animation mixer on the skeleton model
+        this.mixer = new THREE.AnimationMixer(this.skeletonModel);
+        this.attackAction = null;
+        
+        let crawlLoaded = false;
+        let attackLoaded = false;
+        
+        const checkReady = () => {
+            if (crawlLoaded && attackLoaded) {
+                console.log('All animations loaded!');
+                if (this._resolveReady) this._resolveReady();
+            }
+        };
+        
         // Load the zombie crawl animation
         loader.load('/assets/animations/ZombieCrawlAnimation/26c3a332-36ca-491c-89f8-0fd28a98ffec.gltf', (animGltf) => {
             if (!this.skeletonModel) return;
@@ -321,11 +417,10 @@ export class EnemyAI {
             const animations = animGltf.animations;
             if (!animations || animations.length === 0) {
                 console.warn('No animations found in crawl animation file');
+                crawlLoaded = true;
+                checkReady();
                 return;
             }
-            
-            // Create animation mixer on the skeleton model
-            this.mixer = new THREE.AnimationMixer(this.skeletonModel);
             
             // Find the crawl animation (skip T-Pose if present)
             let crawlAnim = null;
@@ -343,41 +438,166 @@ export class EnemyAI {
             
             if (crawlAnim) {
                 // Remove root motion (translation tracks) to prevent jumping on loop
-                // This makes the animation play in place while our AI handles movement
                 const filteredTracks = crawlAnim.tracks.filter(track => {
-                    // Remove position/translation tracks from root bone to prevent jump
-                    // Keep rotation tracks for natural crawling motion
                     const isRootTranslation = track.name.includes('.position') && 
                         (track.name.includes('Hips') || track.name.includes('Root') || track.name.includes('Armature'));
                     return !isRootTranslation;
                 });
                 
-                // Create a new clip without root motion
                 const inPlaceClip = new THREE.AnimationClip(
                     crawlAnim.name + '_InPlace',
                     crawlAnim.duration,
                     filteredTracks
                 );
                 
-                // Set up smooth looping animation
                 this.crawlAction = this.mixer.clipAction(inPlaceClip);
-                
-                // Configure for smooth looping
                 this.crawlAction.setLoop(THREE.LoopRepeat, Infinity);
                 this.crawlAction.clampWhenFinished = false;
-                
                 this.crawlAction.play();
-                console.log('Crawl animation loaded (in-place):', inPlaceClip.name, 'duration:', inPlaceClip.duration, 'tracks:', filteredTracks.length);
-                
-                // Model is now fully ready
-                if (this._resolveReady) this._resolveReady();
+                console.log('Crawl animation loaded:', inPlaceClip.name);
             }
+            
+            crawlLoaded = true;
+            checkReady();
             
         }, undefined, (error) => {
             console.error('Error loading crawl animation:', error);
-            // Still resolve ready even on error so game doesn't hang
-            if (this._resolveReady) this._resolveReady();
+            crawlLoaded = true;
+            checkReady();
         });
+        
+        // Load the zombie attack animation
+        loader.load('/assets/animations/ZombieCrawlAttack/5a4433d2-a4f5-47c3-bfc2-2d6aaf8b0ff5.gltf', (animGltf) => {
+            if (!this.skeletonModel || !this.mixer) {
+                attackLoaded = true;
+                checkReady();
+                return;
+            }
+            
+            const animations = animGltf.animations;
+            if (!animations || animations.length === 0) {
+                console.warn('No animations found in attack animation file');
+                attackLoaded = true;
+                checkReady();
+                return;
+            }
+            
+            // Find the attack animation (skip T-Pose if present)
+            let attackAnim = null;
+            for (const anim of animations) {
+                if (!anim.name.includes('T-Pose')) {
+                    attackAnim = anim;
+                    break;
+                }
+            }
+            
+            if (!attackAnim) {
+                attackAnim = animations.length > 1 ? animations[1] : animations[0];
+            }
+            
+            if (attackAnim) {
+                // Remove root motion from attack animation too
+                const filteredTracks = attackAnim.tracks.filter(track => {
+                    const isRootTranslation = track.name.includes('.position') && 
+                        (track.name.includes('Hips') || track.name.includes('Root') || track.name.includes('Armature'));
+                    return !isRootTranslation;
+                });
+                
+                const attackClip = new THREE.AnimationClip(
+                    attackAnim.name + '_Attack',
+                    attackAnim.duration,
+                    filteredTracks
+                );
+                
+                this.attackAction = this.mixer.clipAction(attackClip);
+                this.attackAction.setLoop(THREE.LoopOnce, 1);
+                this.attackAction.clampWhenFinished = false; // Don't clamp - let it finish cleanly
+                
+                // Store attack duration for manual end detection
+                this.attackDuration = attackClip.duration;
+                
+                console.log('Attack animation loaded:', attackClip.name, 'duration:', attackClip.duration, 'tracks:', filteredTracks.length);
+            }
+            
+            attackLoaded = true;
+            checkReady();
+            
+        }, undefined, (error) => {
+            console.error('Error loading attack animation:', error);
+            attackLoaded = true;
+            checkReady();
+        });
+    }
+    
+    startAttack() {
+        // Check cooldown first
+        if (this.attackData.timer > 0) {
+            return false; // Still on cooldown
+        }
+        if (this.attackData.isAttacking) {
+            return false;
+        }
+        if (!this.attackAction) {
+            console.warn('Attack action not loaded yet');
+            return false;
+        }
+        
+        console.log('Starting attack animation!');
+        this.attackData.isAttacking = true;
+        this.attackData.animTimer = 0; // Track animation progress
+        
+        // Crossfade from crawl to attack
+        if (this.crawlAction) {
+            this.crawlAction.fadeOut(0.15);
+        }
+        
+        this.attackAction.reset();
+        this.attackAction.setEffectiveWeight(1);
+        this.attackAction.fadeIn(0.15);
+        this.attackAction.play();
+        
+        return true;
+    }
+    
+    onAttackAnimationEnd() {
+        console.log('Attack animation ended, setting cooldown to', this.attackData.cooldown);
+        this.attackData.isAttacking = false;
+        this.attackData.timer = this.attackData.cooldown; // Set cooldown
+        this.attackData.animTimer = 0;
+        this.attackData.justEnded = true; // Used to trigger hit-miss sound in main loop
+        // Instantly resume crawl animation to avoid T-pose
+        if (this.attackAction) {
+            this.attackAction.stop();
+        }
+        if (this.crawlAction) {
+            this.crawlAction.reset();
+            this.crawlAction.setEffectiveWeight(1);
+            this.crawlAction.play();
+        }
+    }
+    
+    updateAttackAnimation(delta) {
+        // Update cooldown timer
+        if (this.attackData.timer > 0) {
+            this.attackData.timer -= delta;
+        }
+        
+        // Handle attack animation timing manually since 'finished' event can be unreliable
+        if (this.attackData.isAttacking && this.attackDuration) {
+            this.attackData.animTimer = (this.attackData.animTimer || 0) + delta;
+            
+            // Debug: log every ~0.5 seconds during attack
+            if (Math.floor(this.attackData.animTimer * 2) !== Math.floor((this.attackData.animTimer - delta) * 2)) {
+                console.log('Attack anim progress:', this.attackData.animTimer.toFixed(2), '/', this.attackDuration.toFixed(2),
+                    'attackAction running:', this.attackAction?.isRunning(),
+                    'weight:', this.attackAction?.getEffectiveWeight());
+            }
+            
+            // End attack when animation duration is reached
+            if (this.attackData.animTimer >= this.attackDuration) {
+                this.onAttackAnimationEnd();
+            }
+        }
     }
 
     addGlowingEyes() {
@@ -406,12 +626,12 @@ export class EnemyAI {
             idle: new THREE.MeshBasicMaterial({ 
                 color: 0x330000,
                 transparent: true,
-                opacity: 0.8
+                opacity: 1.0
             }),
             alert: new THREE.MeshBasicMaterial({ 
                 color: 0xAA0000,
                 transparent: true,
-                opacity: 0.9
+                opacity: 1.0
             }),
             chase: new THREE.MeshBasicMaterial({ 
                 color: 0xFF2200,
@@ -542,7 +762,7 @@ export class EnemyAI {
         // Vision wedge helper - shows the 2D horizontal cone where the AI can see
         // This matches the actual raycast behavior (horizontal rays in facing direction)
         // COMMENTED OUT FOR NOW - vision cone helper hidden
-        /*
+        
         const wedgeLength = this.detection?.sightRange || 50;
         const wedgeAngle = this.detection?.sightAngle || Math.PI * 0.7;
         
@@ -575,9 +795,9 @@ export class EnemyAI {
         // Rotate to lie flat on the ground (XZ plane) - rotate around X axis
         // +Math.PI/2 makes Y become +Z (forward direction)
         this.visionCone.rotation.x = Math.PI / 2;
-        this.visionCone.position.set(0, 0.1, 0); // Near ground level to match raycast
+        this.visionCone.position.set(0, 0.15, 0); // Near ground level to match raycast
         group.add(this.visionCone);
-        */
+        
 
         return group;
     }
@@ -632,7 +852,18 @@ export class EnemyAI {
     }
     
     updateAnimation(delta) {
-        if (!this.mixer || !this.crawlAction) return;
+        if (!this.mixer) return;
+        
+        // Update attack animation timing
+        this.updateAttackAnimation(delta);
+        
+        // Don't adjust crawl speed while attacking
+        if (this.attackData.isAttacking) {
+            this.mixer.update(delta);
+            return;
+        }
+        
+        if (!this.crawlAction) return;
         
         // Determine target animation speed based on state
         let targetTimeScale = 1.0;
@@ -665,42 +896,83 @@ export class EnemyAI {
     
     checkPlayerCollision(playerPos) {
         // Check if player is too close to the AI (collision)
-        const toPlayer = playerPos.clone().sub(this.position);
-        const horizontalDist = Math.sqrt(toPlayer.x * toPlayer.x + toPlayer.z * toPlayer.z);
-        const verticalDist = Math.abs(toPlayer.y);
+        _toPlayer.copy(playerPos).sub(this.position);
+        const horizontalDist = Math.sqrt(_toPlayer.x * _toPlayer.x + _toPlayer.z * _toPlayer.z);
+        const verticalDist = Math.abs(_toPlayer.y);
         
         // Collision radius - AI capsule radius + player radius + buffer
-        const collisionRadius = 1.8;
+        // Larger radius prevents skeleton head from clipping through player
+        const collisionRadius = 3.5;
         const verticalThreshold = 3.0; // Allow some vertical leeway
         
+        // Check for attack range (slightly larger than collision)
+        const attackRange = this.attackData.range;
+        const inAttackRange = horizontalDist < attackRange && verticalDist < verticalThreshold;
+        
+        // Debug: Log when player is close
+        if (horizontalDist < 5) {
+            console.log('Close to player:', {
+                horizontalDist: horizontalDist.toFixed(2),
+                verticalDist: verticalDist.toFixed(2),
+                attackRange,
+                inAttackRange,
+                state: this.currentState,
+                isChase: this.currentState === this.states.CHASE,
+                isAttacking: this.attackData.isAttacking,
+                cooldown: this.attackData.timer.toFixed(2),
+                hasAttackAction: !!this.attackAction
+            });
+        }
+        
+        // Trigger attack if in range and chasing
+        if (inAttackRange && this.currentState === this.states.CHASE && !this.attackData.isAttacking) {
+            console.log('ATTACK CONDITIONS MET! Starting attack...');
+            if (this.startAttack()) {
+                // Attack started - return knockback
+                _tempVec1.set(_toPlayer.x, 0, _toPlayer.z).normalize();
+                
+                // Strong knockback on attack hit
+                const knockback = this.attackData.knockbackStrength;
+                
+                // Add slight upward force for impact feel
+                _tempVec1.y = 0.3;
+                _tempVec1.normalize();
+                
+                return {
+                    push: _tempVec1.multiplyScalar(knockback),
+                    colliding: true,
+                    isAttack: true,
+                    damage: this.attackData.damage
+                };
+            }
+        }
+        
+        // Regular collision (no attack)
         if (horizontalDist < collisionRadius && verticalDist < verticalThreshold) {
             // Player is colliding with AI - calculate push direction
-            let pushDir;
-            
             if (horizontalDist > 0.1) {
-                // Push player away horizontally
-                pushDir = new THREE.Vector3(toPlayer.x, 0, toPlayer.z).normalize();
+                _tempVec1.set(_toPlayer.x, 0, _toPlayer.z).normalize();
             } else {
-                // Player is directly on top - push in AI's facing direction
-                pushDir = this.facingDirection.clone();
+                _tempVec1.copy(this.facingDirection);
             }
             
             // Push strength based on how close they are
             const pushStrength = (collisionRadius - horizontalDist) * 15;
             
-            // If player is above, also push them up slightly to get them off
-            if (toPlayer.y > 0.5) {
-                pushDir.y = 0.5;
-                pushDir.normalize();
+            // If player is above, also push them up slightly
+            if (_toPlayer.y > 0.5) {
+                _tempVec1.y = 0.5;
+                _tempVec1.normalize();
             }
             
             return {
-                push: pushDir.multiplyScalar(pushStrength),
-                colliding: true
+                push: _tempVec1.multiplyScalar(pushStrength),
+                colliding: true,
+                isAttack: false
             };
         }
         
-        return { push: null, colliding: false };
+        return { push: null, colliding: false, isAttack: false };
     }
 
     updateTimers(delta) {
@@ -791,7 +1063,9 @@ export class EnemyAI {
         // Hearing check - based on player noise level
         // AI can hear player even if it can see them (useful for state transitions)
         const noiseLevel = this.calculatePlayerNoise();
-        const effectiveHearingRange = this.detection.hearingRange * noiseLevel;
+        // Make AI more sensitive to sound while actively investigating/searching
+        const hearingStateMultiplier = (this.currentState === this.states.INVESTIGATE || this.currentState === this.states.SEARCH) ? 1.4 : 1.0;
+        const effectiveHearingRange = this.detection.hearingRange * noiseLevel * hearingStateMultiplier;
         
         if (distance <= effectiveHearingRange && noiseLevel > 0) {
             this.heardPlayer = true;
@@ -834,13 +1108,13 @@ export class EnemyAI {
         if (this.playerState.isMoving) {
             if (this.playerState.isRunning) {
                 // Running is VERY loud - footsteps, rustling, breathing
-                noiseLevel = 2.0;
+                noiseLevel = 1.5;
             } else if (this.playerState.isCrouching) {
                 // Crouch-walking is quiet but not silent
                 noiseLevel = 0.4;
             } else {
-                // Normal walking - moderately loud
-                noiseLevel = 1.2;
+                // Normal walking - moderately loud (increase so walking is more audible)
+                noiseLevel = 1.1;
             }
         } else {
             // Standing still
@@ -863,11 +1137,21 @@ export class EnemyAI {
 
     checkLineOfSight(targetPos) {
         _toPlayer.copy(targetPos).sub(this.position);
-        _toPlayer.y = 0;
-        const distance = _toPlayer.length();
+        // Use horizontal distance for falloff/fov checks so vertical offsets don't help hide
+        const horizToPlayer = _toPlayer.clone();
+        horizToPlayer.y = 0;
+        const distance = horizToPlayer.length();
 
         // Very close - can always see (increased range for better close detection)
         if (distance < 3.0) return true;
+
+        // Make detection harder at distance
+        const maxSight = this.detection.sightRange;
+        if (distance > maxSight) return false;
+        // Cubic detection falloff: extremely unlikely to detect at distance
+        let detectionChance = 1 - Math.pow(distance / maxSight, 3); // 1.0 (close) to 0.0 (far)
+        detectionChance = Math.min(detectionChance, 0.5); // Never higher than 0.5 at max range
+        if (Math.random() > detectionChance) return false;
 
         // Get the AI's actual facing direction (not toward player)
         if (this.filteredFacing.lengthSq() > 0) {
@@ -876,41 +1160,47 @@ export class EnemyAI {
             _facing.set(1, 0, 0);
         }
 
-        // Ray origin at lower height to hit player body, slightly in front to avoid self-collision
+        // Ray origin at an eye height (configurable) and slightly in front to avoid self-collision
+        const eyeHeight = (this._visionEyeHeight !== undefined) ? this._visionEyeHeight : 1.2;
         const offsetX = _facing.x * 0.7;
         const offsetZ = _facing.z * 0.7;
         this._losRayOrigin.x = this.position.x + offsetX;
-        this._losRayOrigin.y = this.position.y - 0.5; // Ground level - matches player collider height
+        this._losRayOrigin.y = this.position.y + eyeHeight;
         this._losRayOrigin.z = this.position.z + offsetZ;
 
         // Cast rays in a cone in front of the AI's face (in facing direction)
         const halfFov = this.detection.sightAngle * 0.5;
-        const numRays = 3; // Reduced for performance
-        
+        const numRays = 3; // a small fan to cover the cone
+
         for (let i = 0; i < numRays; i++) {
             // Spread rays evenly across the FOV cone
             const t = numRays > 1 ? i / (numRays - 1) : 0.5;
             const coneAngle = -halfFov + t * (halfFov * 2);
-            
-            _tempVec1.copy(_facing).applyAxisAngle(WORLD_UP, coneAngle);
-            this._losRayDir.x = _tempVec1.x;
-            this._losRayDir.y = 0;
-            this._losRayDir.z = _tempVec1.z;
-            const ray = new this.RAPIER.Ray(this._losRayOrigin, this._losRayDir);
 
-            // Cast ray to sight range
+            // Start with a direction toward the player's actual position (includes vertical component)
+            _tempVec1.copy(targetPos).sub(this._losRayOrigin).normalize();
+            // Rotate that direction around the world up axis to sweep the cone
+            _tempVec1.applyAxisAngle(WORLD_UP, coneAngle);
+
+            this._losRayDir.x = _tempVec1.x;
+            this._losRayDir.y = _tempVec1.y;
+            this._losRayDir.z = _tempVec1.z;
+
+            const ray = new this.RAPIER.Ray(this._losRayOrigin, this._losRayDir);
             const hit = this.world.castRay(ray, this.detection.sightRange, true);
 
             if (hit) {
                 const hitBody = hit.collider.parent();
-                
+
                 // Hit ourselves - ignore
                 if (hitBody === this.body) {
                     continue;
                 }
-                
+
                 // Hit the player - we can see them!
                 if (hitBody === this.characterBody) {
+                    // Debug log occasionally
+                    if (Math.random() < 0.02) console.log(`LOS: ray hit player (dist ${distance.toFixed(2)}, originY ${this._losRayOrigin.y.toFixed(2)})`);
                     return true;
                 }
             }
@@ -918,6 +1208,14 @@ export class EnemyAI {
         }
 
         // None of the rays in our vision cone hit the player
+        if (this._lastLosDebugTime === undefined) this._lastLosDebugTime = 0;
+        const now = performance ? performance.now() : Date.now();
+        if (now - this._lastLosDebugTime > 1000) {
+            this._lastLosDebugTime = now;
+            // occasional coarse debug so we don't spam console
+            // console.log('LOS: no ray hit player');
+        }
+
         return false;
     }
 
@@ -994,6 +1292,25 @@ export class EnemyAI {
                     break;
                 }
                 
+                // If we're currently pausing to scan the area, handle the pause/rotation
+                if (this._investigatePausing) {
+                    this.timers.investigationPause = (this.timers.investigationPause || 0) + delta;
+                    // Rotate in place to 'look around'
+                    if (this.mesh) {
+                        this.mesh.rotation.y += delta * 1.5; // rotate ~85deg/sec
+                        this.filteredFacing.set(Math.sin(this.mesh.rotation.y), 0, Math.cos(this.mesh.rotation.y)).normalize();
+                    }
+                    if (this.timers.investigationPause >= (this._investigatePauseDuration || 2.0)) {
+                        this._investigatePausing = false;
+                        this.timers.investigationPause = 0;
+                        // After scanning, move to next investigation point
+                        if (this.memory.investigationPoints && this.memory.investigationPoints.length > 0) {
+                            this.memory.investigationPoints.shift();
+                        }
+                    }
+                    break;
+                }
+
                 // If heard player again, update investigation point (but don't reset timer)
                 if (this.heardPlayer && this.memory.investigationPoints.length > 0) {
                     this.memory.investigationPoints[0] = playerPos.clone();
@@ -1006,17 +1323,16 @@ export class EnemyAI {
                     
                     // Check if reached investigation point
                     if (distToTarget < 2) {
-                        console.log('INVESTIGATE: Reached investigation point');
-                        this.memory.investigationPoints.shift();
-                        
-                        // If player is close, they must be hiding - switch to chase
+                        console.log('INVESTIGATE: Reached investigation point, pausing to scan');
+                        // Pause and scan for a short duration before moving to next point
+                        this._investigatePausing = true;
+                        this.timers.investigationPause = 0;
+                        // If player is close, immediately switch to CHASE
                         if (distance < 8) {
                             console.log('INVESTIGATE: Player nearby, switching to CHASE');
                             this.changeState(this.states.CHASE);
                             this.memory.lastSeenPosition = playerPos.clone();
-                        } else {
-                            console.log('INVESTIGATE: Searching area');
-                            this.changeState(this.states.SEARCH);
+                            this.memory.investigationPoints = [];
                         }
                     }
                 } else {
@@ -1060,17 +1376,46 @@ export class EnemyAI {
                     break;
                 }
                 
+                // Track how long the AI can see the player during chase
+                if (this.canSeePlayer) {
+                    this.chaseVisibleTimer += this.lastDelta || 0.016;
+                } else {
+                    this.chaseVisibleTimer = 0;
+                }
+
+                // If AI has seen the player for too long, start searching a new area
+                if (this.chaseVisibleTimer > this.chaseVisibleTimeout) {
+                    console.log('CHASE: Chased player for too long, switching to SEARCH');
+                    this.chaseVisibleTimer = 0;
+                    this.changeState(this.states.SEARCH);
+                    break;
+                }
+
+                // If we've lost sight for 25 seconds or more, go investigate the last seen location
+                if (!this.canSeePlayer && (this.memory.lastSeenTime >= 25)) {
+                    console.log('CHASE: Lost sight for >=25s, switching to INVESTIGATE (timeout)');
+                    if (this.memory.lastSeenPosition) {
+                        this.memory.investigationPoints = [this.memory.lastSeenPosition.clone()];
+                    }
+                    this.changeState(this.states.INVESTIGATE);
+                    break;
+                }
+
                 // Keep chasing if:
                 // 1. Can see player, OR
                 // 2. Player is close (within 25 units), OR
                 // 3. Haven't reached last known position yet, OR
-                // 4. Haven't lost sight for too long (8 seconds)
-                if (this.canSeePlayer || chaseDistance < 25 || distToLastSeen > 3 || this.memory.lastSeenTime < 8) {
+                // 4. Haven't lost sight for too long (25 seconds)
+                if (this.canSeePlayer || chaseDistance < 25 || distToLastSeen > 3 || this.memory.lastSeenTime < 25) {
                     // Keep chasing toward last known position
                 } else {
-                    // Lost sight, reached last position, and waited - search for them
-                    console.log('CHASE: Lost player, switching to SEARCH');
-                    this.changeState(this.states.SEARCH);
+                    // Lost sight, reached last position, and waited long enough
+                    // Transition to INVESTIGATE so the AI actively looks around the last known location
+                    console.log('CHASE: Lost player for >=25s, switching to INVESTIGATE');
+                    if (this.memory.lastSeenPosition) {
+                        this.memory.investigationPoints = [this.memory.lastSeenPosition.clone()];
+                    }
+                    this.changeState(this.states.INVESTIGATE);
                 }
                 break;
 
@@ -1089,8 +1434,26 @@ export class EnemyAI {
                     this.changeState(this.states.CHASE);
                     this.memory.lastSeenPosition = playerPos.clone();
                 } else if (this.timers.search > 15) {
-                    this.changeState(this.states.RETURN);
-                    this.breadcrumbs = []; // Clear old breadcrumbs
+                    if (this.searchAttempts < this.maxSearchAttempts) {
+                        // Pick a new random patrol/search point
+                        const patrolPoints = this.memory.patrolPoints || [];
+                        if (patrolPoints.length > 0) {
+                            const newSearchPoint = patrolPoints[Math.floor(Math.random() * patrolPoints.length)];
+                            this.memory.lastSeenPosition = newSearchPoint.clone();
+                            this.timers.search = 0;
+                            this.searchAttempts++;
+                            console.log('SEARCH: Could not find player, moving to new area');
+                        } else {
+                            // No patrol points, just return
+                            this.changeState(this.states.RETURN);
+                            this.breadcrumbs = [];
+                            this.searchAttempts = 0;
+                        }
+                    } else {
+                        this.changeState(this.states.RETURN);
+                        this.breadcrumbs = [];
+                        this.searchAttempts = 0;
+                    }
                 }
                 break;
 
@@ -1123,6 +1486,11 @@ export class EnemyAI {
         this.timers.sameDistance = 0;
         this.stuckDetection.lastDistance = 0;
 
+        // Reset search attempts when entering SEARCH state
+        if (newState === this.states.SEARCH) {
+            this.searchAttempts = 0;
+        }
+
         // Reset relevant timers
         if (newState === this.states.ALERT) {
             this.timers.alert = 0;
@@ -1148,6 +1516,23 @@ export class EnemyAI {
             }
         } else if (newState === this.states.INVESTIGATE) {
             this.timers.investigation = 0;
+            // Seed multiple investigation points around the last seen position so the AI searches a small area
+            this._investigatePauseDuration = 2.0; // seconds to pause and scan at each point
+            this._investigatePausing = false;
+            if (this.memory.lastSeenPosition) {
+                // Create a small spiral of points around lastSeenPosition
+                const pts = [];
+                const center = this.memory.lastSeenPosition.clone();
+                const num = 6;
+                for (let i = 0; i < num; i++) {
+                    const a = (i / num) * Math.PI * 2;
+                    const r = 2 + (i % 3); // radius between 2 and 4
+                    pts.push(new THREE.Vector3(center.x + Math.cos(a) * r, center.y, center.z + Math.sin(a) * r));
+                }
+                this.memory.investigationPoints = pts;
+            } else {
+                this.memory.investigationPoints = [];
+            }
         } else if (newState === this.states.SEARCH) {
             this.timers.search = 0;
         } else if (newState === this.states.RETURN) {
@@ -1167,6 +1552,11 @@ export class EnemyAI {
     }
 
     updateMovement(delta) {
+        // Stop all movement during attack animation
+        if (this.attackData.isAttacking) {
+            return;
+        }
+        
         let targetPos = null;
         let speed = this.speeds.patrol;
 
@@ -1561,19 +1951,19 @@ export class EnemyAI {
         if (this.facingDirection.lengthSq() > 0.001) {
             // Calculate target rotation angle from facing direction
             const targetAngle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
-            
+
             // Smoothly interpolate current rotation to target rotation
             let currentAngle = this.mesh.rotation.y;
-            
+
             // Handle angle wrapping (find shortest rotation path)
             let angleDiff = targetAngle - currentAngle;
             while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
             while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-            
+
             // Apply smoothing (lerp factor of 0.1 = smooth, 1.0 = instant)
             const smoothFactor = 0.15;
             this.mesh.rotation.y = currentAngle + angleDiff * smoothFactor;
-            
+
             // Update filteredFacing to match the smoothed visual rotation
             // This ensures raycasts match what the AI visually appears to be looking at
             this.filteredFacing.set(
@@ -1584,8 +1974,6 @@ export class EnemyAI {
         }
 
         // Update vision cone color based on state
-        // COMMENTED OUT - vision cone helper hidden
-        /*
         if (this.visionCone) {
             if (this.currentState === this.states.CHASE) {
                 this.visionCone.material.color.setHex(0xff0000); // Red when chasing
@@ -1597,16 +1985,39 @@ export class EnemyAI {
                 this.visionCone.material.color.setHex(0x00ff00); // Green when patrolling
                 this.visionCone.material.opacity = 0.1;
             }
+
+            // If sight params changed, rebuild the cone geometry so cone angle matches sightAngle
+            const sightRange = this.detection?.sightRange || 10;
+            const sightAngle = this.detection?.sightAngle || Math.PI * 0.35;
+            if (!this._visionParamsCache || this._visionParamsCache.range !== sightRange || this._visionParamsCache.angle !== sightAngle) {
+                // Rebuild cone geometry
+                const wedgeShape = new THREE.Shape();
+                wedgeShape.moveTo(0, 0);
+                const segments = 32;
+                const halfAngle = sightAngle * 0.5;
+                for (let i = 0; i <= segments; i++) {
+                    const angle = -halfAngle + (i / segments) * sightAngle;
+                    const x = Math.sin(angle) * sightRange;
+                    const y = Math.cos(angle) * sightRange;
+                    wedgeShape.lineTo(x, y);
+                }
+                wedgeShape.lineTo(0, 0);
+                const newGeom = new THREE.ShapeGeometry(wedgeShape);
+                try { this.visionCone.geometry.dispose && this.visionCone.geometry.dispose(); } catch (e) {}
+                this.visionCone.geometry = newGeom;
+                this._visionParamsCache = { range: sightRange, angle: sightAngle };
+            }
+            // Ensure cone sits slightly above ground to avoid z-fighting
+            this.visionCone.position.y = 0.15;
         }
-        */
 
         // Update eye colors and glow based on state
         if (!this.eyeMaterials || this.eyes.length === 0) return; // Eyes not yet initialized
-        
+
         let eyeMaterial;
         let glowIntensity = 0;
         let glowColor = 0xFF0000;
-        
+
         switch (this.currentState) {
             case this.states.CHASE:
                 eyeMaterial = this.eyeMaterials.chase;
@@ -1638,7 +2049,7 @@ export class EnemyAI {
                 eye.material = eyeMaterial;
             }
         });
-        
+
         // Update eye glow light intensity and color
         if (this.eyeGlow) {
             this.eyeGlow.intensity = glowIntensity;
@@ -1675,16 +2086,42 @@ export class EnemyAI {
             }
         }
         
-        // Simple footstep audio based on movement
-        const isMoving = this.velocity.lengthSq() > 0.1;
+        // Heavy footstep audio based on movement and state
+        const isMoving = this.velocity.lengthSq() > 0.1 && !this.attackData.isAttacking && this.audio.footstepLoaded && !this.footstepsPausedForZoom;
+        let footstepInterval = 2.0; // Default interval (patrol)
+        let playbackRate = 1.0; // Default rate
+        if (this.currentState === this.states.CHASE) {
+            footstepInterval = 0.4; // Faster steps when chasing
+            playbackRate = 1.0;
+        } else if (this.currentState === this.states.ALERT) {
+            footstepInterval = 0.0; // No footsteps during alert
+        } else if (this.currentState === this.states.PATROL) {
+            footstepInterval = 2.0;
+            playbackRate = 1.0;
+        } else if (this.currentState === this.states.INVESTIGATE || this.currentState === this.states.SEARCH) {
+            footstepInterval = 2.0;
+            playbackRate = 1.15;
+        } else {
+            footstepInterval = 2.0;
+            playbackRate = 1.0;
+        }
 
-        if (isMoving) {
+        if (isMoving && footstepInterval > 0) {
             this.audio.lastFootstep += delta;
-            if (this.audio.lastFootstep > 0.5) { // Footstep every 0.5 seconds
-                // Placeholder for audio trigger
-                // playFootstepSound();
+            if (this.audio.lastFootstep > footstepInterval) {
+                if (this.audio.footstepSound && this.audio.footstepSound.buffer) {
+                    this.audio.footstepSound.setPlaybackRate(playbackRate);
+                    this.audio.footstepSound.stop(); // Stop if still playing
+                    this.audio.footstepSound.play();
+                }
                 this.audio.lastFootstep = 0;
             }
+        } else if (!isMoving) {
+            this.audio.lastFootstep = 0;
+        }
+        // If zoom effect is active, pause any currently playing footstep
+        if (this.footstepsPausedForZoom && this.audio.footstepSound && this.audio.footstepSound.isPlaying) {
+            this.audio.footstepSound.pause && this.audio.footstepSound.pause();
         }
     }
 

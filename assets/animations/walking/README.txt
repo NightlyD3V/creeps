@@ -1,0 +1,1 @@
+This folder contains the skeleton walking animation for use in patrol and return states.

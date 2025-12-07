@@ -127,7 +127,7 @@ export function Trees(ground, scene, world, RAPIER) {
         // Create physics colliders for all trees
         if (world && RAPIER) {
             const baseHeight = 35; // Match tree height
-            const baseRadius = 1.2; // Smaller radius - just the trunk, not the whole canopy
+            const baseRadius = 1.7; // Increased radius for bigger tree colliders
             
             for (const pos of treePositions) {
                 const scaledHeight = baseHeight * pos.scale * 0.5;

@@ -19,7 +19,7 @@ let totalAssets = 0;
 const assetsToPreload = [
     // Game page and scripts
     './src/levels/1/level_1.html',
-    './src/levels/1/level_1.jsx',
+    './src/levels/1/level_1.js',
     // Models
     '/assets/models/Skeleton/Skeleton.gltf',
     '/assets/animations/ZombieCrawlAnimation/26c3a332-36ca-491c-89f8-0fd28a98ffec.gltf',
