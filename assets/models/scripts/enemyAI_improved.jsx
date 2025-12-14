@@ -368,7 +368,7 @@ export class EnemyAI {
         const loader = new GLTFLoader();
         
         // Load the skeleton model
-        loader.load('/assets/models/Skeleton/Skeleton.gltf', (gltf) => {
+        loader.load('/assets/models/Skeleton-No_Legs.glb', (gltf) => {
             this.skeletonModel = gltf.scene;
             
             // Scale the skeleton - 2x bigger than before (4.8 = 2.4 * 2)
@@ -399,7 +399,12 @@ export class EnemyAI {
                     
                     // Use simpler material for performance
                     if (child.material) {
-                        child.material.side = THREE.FrontSide;
+                        child.material.side = THREE.BackSide;
+                        child.material = new THREE.MeshStandardMaterial({
+                            color: 0x000000,      // or child.material.color if you want to keep the base color
+                            roughness: 1.0,
+                            metalness: 0.0,
+                        });
                     }
                 }
             });
@@ -1398,9 +1403,17 @@ export class EnemyAI {
                     console.log(`CHASE: Stuck at same distance (${chaseDistance.toFixed(1)}) for ${this.stuckDetection.timeout}s, returning home`);
                     this.timers.sameDistance = 0;
                     this.stuckDetection.lastDistance = 0;
-                    this.changeState(this.states.RETURN);
+                    this.changeState(this.states.SEARCH);
                     break;
                 }
+                
+                // If stuck in wall or obstacle for too long try different route 
+                // if (this.timers.stuck > this.stuckDetection.obstacleTimeout) {
+                //     console.log('CHASE: Stuck in obstacle for too long, switching to SEARCH');
+                //     this.timers.stuck = 0;
+                //     this.changeState(this.states.SEARCH);
+                //     break;
+                // }
                 
                 // Track how long the AI can see the player during chase
                 if (this.canSeePlayer) {

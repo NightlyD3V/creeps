@@ -76,10 +76,10 @@ export default class Grass {
 
         loader.load('/assets/models/grass_patch.glb', (gltf) => {
             // Tuneable parameters - balanced for performance
-            const groundSize = 500;
-            const patchGrid = 15; // Reduced from 20
-            const bladesPerPatchGrid = 4; // Reduced from 5
-            const extraPerBlade = 4; // Reduced from 6
+            const groundSize = 1000;
+            const patchGrid = 20; 
+            const bladesPerPatchGrid = 5; 
+            const extraPerBlade = 6; // Reduced from 6
 
             // Calculate total grass instances we want
             const bladesPerPatch = bladesPerPatchGrid * bladesPerPatchGrid;

@@ -23,7 +23,7 @@
                 pointer-events: none;
             }
             #game-loading-screen h1 {
-                color: #8B0000;
+                color: white;
                 font-family: 'Raven Scream', serif;
                 font-size: 3rem;
                 text-shadow: 0 0 20px #ff0000;
@@ -200,36 +200,51 @@
                     filter: none;
                 }
             }
+        
         </style>
     </head>
     <body>
+        <div class="clock-container">
+            <h1 id="time">00:00:00</h1>
+            <p id="date">Loading...</p>
+        </div>
         <!-- Glitch effect overlay -->
         <div id="glitch-overlay"></div>
         <!-- Loading screen to prevent white flash -->
         <div id="game-loading-screen">
-            <h1>Find all 8 pages of her diary...</h1>
+            <h1>Merge the 8 souls to complete the trial</h1>
         </div>
         <!-- Audio handled by Web Audio API in level_1.jsx for better performance -->
         <div id="escape-container">
             <a href="../../../index.html"><button class="menu-button">EXIT GAME</button></a>
             <button class="menu-button">SOUND OFF</button>
+            <button class="menu-button">CONTROLS</button>
             <button class="menu-button">REPORT BUG</button>
         </div>
         <div id="player_ui">
             <div id="crosshair"></div>
+            <div id="inventory">
+                <div class="inventory-slot" id="slot-0"></div>
+                <div class="inventory-slot" id="slot-1"></div>
+                <div class="inventory-slot" id="slot-2"></div>
+                <div class="inventory-slot" id="slot-3"></div>
+                <div class="inventory-slot" id="slot-4"></div>
+            </div>
         </div>
         <div id="vignette"></div>
         <div id="healthbar">
-            <img src="../../../assets/animations/fire/1.png" id="fire">
-            <img src="../../../assets/animations/fire/1.png" id="fire">
-            <img src="../../../assets/animations/fire/1.png" id="fire">
-        </div>
-        
-        <!-- Movement State Icons (bottom right) -->
-        <div id="movement-icons">
-            <img src="../../../assets/icons/walking.png" id="walking-icon" class="movement-icon" style="display: none;">
-            <img src="../../../assets/icons/running.png" id="running-icon" class="movement-icon" style="display: none;">
-            <img src="../../../assets/icons/crouch.png" id="crouch-icon" class="movement-icon" style="display: none;">
+            <img src="../../../assets/animations/fire/1.png" id="fire" style="filter: hue-rotate(90deg) saturate(200%);">
+            <img src="../../../assets/animations/fire/1.png" id="fire" style="filter: hue-rotate(90deg) saturate(200%);">
+            <img src="../../../assets/animations/fire/1.png" id="fire" style="filter: hue-rotate(90deg) saturate(200%);">
+            <div id="stamina-bar_container">
+                <div id="stamina-bar" style="width: 50%;"></div>
+            </div>
+             <!-- Movement State Icons (bottom right) -->
+            <div id="movement-icons">
+                <img src="../../../assets/icons/walking.png" id="walking-icon" class="movement-icon" style="display: none;">
+                <img src="../../../assets/icons/running.png" id="running-icon" class="movement-icon" style="display: none;">
+                <img src="../../../assets/icons/crouch.png" id="crouch-icon" class="movement-icon" style="display: none;">
+            </div>
         </div>
         
         <!-- Mobile Touch Controls -->

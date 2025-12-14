@@ -33,6 +33,7 @@ const assetsToPreload = [
     '/assets/materials/trees/T_Autumn_D.png',
     '/assets/materials/trees/T_Autumn_N_1.png',
     '/assets/materials/trees/T_Autumn_OP_1.png',
+    'soccer_ball_mat_bcolor.png',
     // Audio
     '/assets/sounds/fx/calming-rain.mp3',
     '/assets/sounds/fx/walking-through-grass.mp3',

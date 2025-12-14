@@ -17,7 +17,7 @@ export class Rain {
         const dropCount = 1000;
         
         // Create VERY thin line-like geometry for rain drops - more like actual rain streaks
-        const rainGeom = new THREE.PlaneGeometry(0.04, 2.5); // Much thinner width
+        const rainGeom = new THREE.PlaneGeometry(0.5, 2.5); // Much thinner width
         
         // Create a raindrop texture (white with transparent edges)
         const canvas = document.createElement('canvas');

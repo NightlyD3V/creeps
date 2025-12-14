@@ -1,5 +1,11 @@
 import * as THREE from 'three/webgpu'
 import { GLTFLoader } from 'three/examples/jsm/Addons.js'
+import WebGPU from 'three/addons/capabilities/WebGPU.js';
+import { dotScreen } from 'three/addons/tsl/display/DotScreenNode.js';
+import { rgbShift } from 'three/addons/tsl/display/RGBShiftNode.js';
+import { dof } from 'three/examples/jsm/tsl/display/DepthOfFieldNode.js';
+import { ACESFilmicToneMappingShader } from 'three/addons/shaders/ACESFilmicToneMappingShader.js';
+import { LineBasicMaterial } from 'three/webgpu';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
 import { Skybox } from '../../../assets/models/scripts/skybox'
@@ -15,9 +21,13 @@ import { Moon } from '../../../assets/models/scripts/moon'
 import { EnemyAI } from '../../../assets/models/scripts/enemyAI_improved.jsx'
 import { loadSkeletonFx, playDeadlyStrike, playHitMiss } from './audio_fx'
 import { Maze } from '../../../assets/models/scripts/maze'
+import  Page  from '../../../assets/models/scripts/page'
 import Stats from 'stats.js'
-import { positionLocal, Fn, uniform, vec4, vec3, vec2, length, float, abs, time, sin, mod, fract, floor, hash, uv, mix, clamp, shapeCircle,
+import { positionLocal, Fn, pass, uniform, vec4, vec3, vec2, tslFn, length, float, abs, time, sin, mod, fract, floor, hash, uv, mix, clamp, shapeCircle,
 				instancedArray, instanceIndex } from 'three/tsl'
+
+requestAnimationFrame(function loop(){ requestAnimationFrame(loop) });
+let container, camera, scene, renderer, flashlight = null;
 
 // Reusable temp vectors to avoid GC pressure in render loop
 const _camPos = new THREE.Vector3();
@@ -186,7 +196,7 @@ function ensurePickupIcon() {
     if (!pickupIcon) {
       pickupIcon = document.createElement('img');
       pickupIcon.id = 'pickup-icon';
-      pickupIcon.src = '/assets/icons/pickup.png';
+      pickupIcon.src = '/assets/icons/github.png';
       Object.assign(pickupIcon.style, {
         position: 'fixed',
         left: 'calc(50% - 24px)',
@@ -197,7 +207,7 @@ function ensurePickupIcon() {
         opacity: '0',
         transition: 'opacity 120ms ease-out, transform 120ms ease-out',
         transform: 'scale(1)',
-        zIndex: '999999'
+        zIndex: '999998'
       });
       document.body.appendChild(pickupIcon);
     }
@@ -417,8 +427,9 @@ function playGruntSound() {
 // RAPIER PHYSICS!
 import('@dimforge/rapier3d').then(RAPIER => {
     console.log('Rapier ready:', RAPIER.version())
-
-
+    // ----------------------------------------------------------------
+    // MAIN GAME SETUP
+    // ----------------------------------------------------------------
     let gravity = { x: 0.0, y: -20, z: 0.0 }
     let world = new RAPIER.World(gravity)
     let prevTime = performance.now()
@@ -439,20 +450,71 @@ import('@dimforge/rapier3d').then(RAPIER => {
     renderer.setSize(window.innerWidth, window.innerHeight)
     // Cap pixel ratio to reduce GPU fill cost (lower gives more stable fps)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0))
-    renderer.shadowMap.enabled = true
+    // renderer.shadowMap.enabled = true
     // VSMShadowMap can be expensive; use PCFSoftShadowMap for better perf/quality balance
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap
-    renderer.outputEncoding = THREE.sRGBEncoding
-    renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 2.0 // Balanced exposure - dark but fog visible
+    // renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    // renderer.outputEncoding = THREE.sRGBEncoding
+    // renderer.toneMapping = THREE.NeutralToneMapping
+    // renderer.toneMappingExposure = 1.0 // Balanced exposure - dark but fog visible
     renderer.setClearColor(0x000000, 1)
     document.body.appendChild(renderer.domElement)
+    
+    // postprocessing
+    let postProcessing = new THREE.PostProcessing(renderer);
+    let dotScreenPass, rgbShiftPass;  
 
+    function createPostProcessingNodes() {
+        const scenePass = pass(scene, camera);
+        const scenePassColor = scenePass.getTextureNode();
+
+        dotScreenPass = dotScreen(scenePassColor);
+        dotScreenPass.scale.value = 1000;  
+
+        rgbShiftPass = rgbShift(scenePass);
+        rgbShiftPass.amount.value = 0.0001;
+
+        postProcessing.outputNode = rgbShiftPass;  
+
+        // Flag the system to rebuild WebGPU targets
+        postProcessing.needsUpdate = true;
+    }
+
+// Call this once on init
+createPostProcessingNodes();
+
+window.addEventListener('resize', onWindowResize);
+
+function onWindowResize() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    // Update camera
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+
+    // Update renderer
+    const dpr = Math.min(window.devicePixelRatio, 2);
+    renderer.setPixelRatio(dpr);
+    renderer.setSize(width, height);
+
+    // Recreate the node chain to rebuild targets
+    createPostProcessingNodes();  // Now updates the outer refs correctly
+
+    // Update effect params directly via stored refs (no chaining needed!)
+    dotScreenPass.scale.value = (width + height) * 0.25;
+
+    // Force immediate render to sync and eliminate any flash
+    postProcessing.render(scene, camera);
+}   
+			
     const textureLoader = new THREE.TextureLoader()
     const loader = new GLTFLoader();
 
-    // --- NO POST PROCESSING (for performance) ---
-    
+    // PAGE PICKUP 
+    const page = new Page()
+    scene.add(page.group)
+
+
     // --- ZOOM EFFECT FOR ENEMY ENCOUNTERS ---
     const defaultFov = 75;
     const zoomFov = 50; // Zoomed in FOV when enemy detected
@@ -511,24 +573,27 @@ import('@dimforge/rapier3d').then(RAPIER => {
     const rightVec = new THREE.Vector3()
     const moveDir = new THREE.Vector3()
     window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = (w / h)
       camera.updateProjectionMatrix()
-      renderer.setSize(window.innerWidth, window.innerHeight)
+      renderer.setSize(w, h)
     })
     // const grid = new THREE.GridHelper( 400, 100, 0xffffff, 0xffffff )
     // grid.material.opacity = 0.5
     // grid.material.depthWrite = false
     // grid.material.transparent = true
     // scene.add( grid )
-    const axesHelper = new THREE.AxesHelper( 5 );
-    scene.add( axesHelper );
+    // AXES HELPER
+    // const axesHelper = new THREE.AxesHelper( 5 );
+    // scene.add( axesHelper );
     // let mazeData = null;
     
     // VOLUMETRIC FOG - Linear fog for better light interaction
     // Horror atmosphere with visible atmospheric fog
-    const fogColor = 0x1a1a1a; // Neutral dark gray - no color tint
+    const fogColor = 0x5d765b; // Neutral dark gray - no color tint
     const fogNear = 0.5; // Fog starts immediately
-    const fogFar = 60; // Full fog at shorter distance - much denser
+    const fogFar = 50; // Full fog at shorter distance - much denser
     scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
     scene.background = new THREE.Color(fogColor); // Match background to fog for seamless blend
     
@@ -585,7 +650,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     }
     
     // Ambient Light - Dim but enough to see fog and silhouettes
-    const ambientLight = new THREE.AmbientLight(0x202020, 2.5); // Neutral gray, subtle fill
+    const ambientLight = new THREE.AmbientLight(0x202020, 150); // Neutral gray, subtle fill
     scene.add(ambientLight);
     // Cuboid Collider
     const cubeMesh = new THREE.Mesh(new THREE.BoxGeometry(10, 1, 10), new THREE.MeshBasicMaterial({color: 0x800080}))
@@ -604,8 +669,10 @@ import('@dimforge/rapier3d').then(RAPIER => {
         // Apply the texture to the model's material(s)
         gltf.scene.traverse((child) => {
           if (child.isMesh) {
-            child.material = new THREE.MeshStandardMaterial({ map: soccerball_diffuseMap })   ; // Assign as base color map
-            child.material.needsUpdate = true; // Flag for update in the render loop
+            child.material = new THREE.MeshStandardMaterial({ map: soccerball_diffuseMap,  })   ; // Assign as base color map
+            child.material.map.flipY = false;
+            child.material.map.needsUpdate = true;
+            child.material.needsUpdate = true; 
           }
         });
         const model = gltf.scene;
@@ -613,6 +680,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
+                    child.geometry.computeBoundingSphere();
+                    const originalRadius = ballMesh.geometry.boundingSphere.radius;
                 }
             });
 
@@ -625,7 +694,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
             // STEP 2 — Create Rapier Rigid Body
             const bodyDesc = RAPIER.RigidBodyDesc
                 .dynamic()
-                .setTranslation(10, 5, 0)
+                .setTranslation(0, 0, 0)
                 .setCanSleep(false);
 
             const body = world.createRigidBody(bodyDesc);
@@ -633,8 +702,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
             // STEP 3 — Choose a collider shape
             // Simplest: sphere collider approximating the model
             const collider = RAPIER.ColliderDesc
-                .ball(1)                // radius
-                .setMass(1)
+                .ball(0.6)                // radius
+                .setMass(2)
                 .setRestitution(1.1);
 
             world.createCollider(collider, body);
@@ -663,7 +732,66 @@ import('@dimforge/rapier3d').then(RAPIER => {
     const cylinderShape = RAPIER.ColliderDesc.cylinder(1, 1).setMass(1).setRestitution(1.1)
     world.createCollider(cylinderShape, cylinderBody)
     dynamicBodies.push([cylinderMesh, cylinderBody])
-   
+   // COLLISION DEBUG
+    const debugBuffers = new RAPIER.DebugRenderBuffers();
+    // Material & geometry for wireframe lines
+    const debugGeometry = new THREE.BufferGeometry();
+    // Create *empty* placeholders so WebGPU sees the attributes at material compile time
+    debugGeometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(new Float32Array(0), 3)
+    );
+
+    debugGeometry.setAttribute(
+      "color",
+      new THREE.BufferAttribute(new Float32Array(0), 3)
+    );
+
+    const debugMaterial = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      toneMapped: false,
+    });
+
+    const debugLines = new THREE.LineSegments(debugGeometry, debugMaterial);
+    scene.add(debugLines);
+
+    function updateDebugRender(world) {
+    const debugRender = world.debugRender();
+    const { vertices, colors } = debugRender;
+
+    if (!vertices || vertices.length === 0) {
+        debugLines.visible = false;
+        return;
+    }
+
+    debugLines.visible = true;
+
+    const posAttr = debugGeometry.getAttribute("position");
+    const colAttr = debugGeometry.getAttribute("color");
+
+    // If buffer size changed → rebuild attribute (safe for WebGPU)
+    if (posAttr.array.length !== vertices.length) {
+        debugGeometry.setAttribute(
+            "position",
+            new THREE.BufferAttribute(vertices, 3)
+        );
+    } else {
+        posAttr.array.set(vertices);
+        posAttr.needsUpdate = true;
+    }
+
+    if (colAttr.array.length !== colors.length) {
+        debugGeometry.setAttribute(
+            "color",
+            new THREE.BufferAttribute(colors, 3)
+        );
+    } else {
+        colAttr.array.set(colors);
+        colAttr.needsUpdate = true;
+    }
+
+    debugGeometry.setDrawRange(0, vertices.length / 3);
+}
     console.log(dynamicBodies)
     // --- PICKUP INTERACTION ---
     // Allow player to pick up dynamic bodies by pointing at them and holding LMB
@@ -749,9 +877,21 @@ import('@dimforge/rapier3d').then(RAPIER => {
       grabbedObject = null;
     }
 
+    // PICKUP (ADD TO INVENTORY) WHEN E KEY PRESSED
+    // window.addEventListener('keydown', (event) => {
+    //   if (event.key === 'e' || event.key === 'E') {
+    //     // Cast a ray forward from the camera center
+    //     const dir = new THREE.Vector3();
+    //     camera.getWorldDirection(dir);
+    //     const origin = camera.position.clone();
+    //     const ray = new THREE.Raycaster(origin, dir.normalize(), 0, pickupReach); // reach
+      
+
     // Mouse events for picking
     document.addEventListener('mousedown', tryPick);
     document.addEventListener('mouseup', () => releasePick(true));
+
+
     // --- GROUND PHYSICS ---
     // 1. Create the fixed body (Use the builder .fixed())
     const groundBodyDesc = RAPIER.RigidBodyDesc.fixed()
@@ -759,7 +899,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     const groundBody = world.createRigidBody(groundBodyDesc);
     // 2. Create the collider (Make it THICK so you can't tunnel through it)
     // 250 width, 2 height (4 units thick), 250 depth
-    const groundColliderDesc = RAPIER.ColliderDesc.cuboid(250, 2, 250);
+    const groundColliderDesc = RAPIER.ColliderDesc.cuboid(500, 2, 500);
     world.createCollider(groundColliderDesc, groundBody);
     
     // --- INVISIBLE BOUNDARY WALLS ---
@@ -767,8 +907,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // Walls are placed well inside the edge so player can't see over
     const wallHeight = 50;  // Tall enough to prevent jumping over
     const wallThickness = 2;
-    const wallDistance = 180;  // Much tighter boundary so player can't see edge
-    const mapSize = 250;
+    const wallDistance = 300;  // Much tighter boundary so player can't see edge
+    const mapSize = 500;
     
     // North wall (+Z)
     const northWallBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, wallHeight / 2, wallDistance));
@@ -1056,14 +1196,13 @@ import('@dimforge/rapier3d').then(RAPIER => {
       const floor_material = new THREE.MeshStandardMaterial({
         map: texture,
         bumpMap: bumpMap,
-        // Reduce bump intensity to avoid hard, blocky shading
-        bumpScale: 1.8,
+        bumpScale: 25.0,
         roughness: 0.8,
         metalness: 0.0,
         side: THREE.DoubleSide
       });
       
-      floorMesh = new THREE.Mesh(new THREE.BoxGeometry(500, 4, 500, 64, 1, 64), floor_material);
+      floorMesh = new THREE.Mesh(new THREE.BoxGeometry(1000, 4, 1000, 64, 1, 64), floor_material);
       floorMesh.position.y = -1;
       scene.add(floorMesh);
 
@@ -1226,7 +1365,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     
     let flashlightOn = true; // Flashlight toggle state
     let flashlightJustToggled = false; // Track when flashlight is toggled for AI hearing
-    let flashlightIntensity = 100.0; // Store original intensity
+    let flashlightIntensity = 600.0; // Store original intensity
     
     const onKeyDown = (e) => {
     // Block movement input during encounter freeze
@@ -1507,22 +1646,22 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // ========== END MOBILE CONTROLS ==========
     
     // ---------------- SHADER TEST ------------------------------------- //
-    const material1 = new THREE.MeshBasicNodeMaterial()
-    const circle1 = Fn(() => {
-      let c = vec3().toVar()
-      let uv = positionLocal.xy.mul(5)
-      let d = length(uv)
-      for (let i = 0; i < 3; i++) {
-        uv = uv.add(uv.div(d).mul(time.mul(0.1 + i * 0.05)))
-        c[i] = float(0.01).div(length(fract(uv).sub(0.5)))
-      }
-      return vec4(c.div(d), 1)
-    })
-    material1.colorNode = circle1()
-    const mesh1 = new THREE.Mesh(new THREE.PlaneGeometry(10,10), material1)
-    mesh1.position.z = -50
-    mesh1.position.y = 5
-    scene.add(mesh1)
+    // const material1 = new THREE.MeshBasicNodeMaterial()
+    // const circle1 = Fn(() => {
+    //   let c = vec3().toVar()
+    //   let uv = positionLocal.xy.mul(5)
+    //   let d = length(uv)
+    //   for (let i = 0; i < 3; i++) {
+    //     uv = uv.add(uv.div(d).mul(time.mul(0.1 + i * 0.05)))
+    //     c[i] = float(0.01).div(length(fract(uv).sub(0.5)))
+    //   }
+    //   return vec4(c.div(d), 1)
+    // })
+    // material1.colorNode = circle1()
+    // const mesh1 = new THREE.Mesh(new THREE.PlaneGeometry(10,10), material1)
+    // mesh1.position.z = -50
+    // mesh1.position.y = 5
+    // scene.add(mesh1)
     // ----------------------------------------------------------------- //
     // PROPS
     /*FLASHLIGHT - Primary light source in darkness*/
@@ -1532,8 +1671,8 @@ import('@dimforge/rapier3d').then(RAPIER => {
     const spotLight = new THREE.SpotLight( 
         0xfff5e6,   // Slightly warmer color (incandescent tint)
         600.0,      // Reduced intensity for realism
-        80,         // Shorter distance - light falls off naturally
-        0.35,       // Narrower beam angle (~20 degrees)
+        100,         // Shorter distance - light falls off naturally
+        0.5,       // Narrower beam angle (~20 degrees)
         0.7,        // Softer penumbra edge (0-1, higher = softer)
         1.5         // Physical light decay (inverse square)
     );
@@ -1542,7 +1681,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
     // const spotLightHelper = new THREE.SpotLightHelper( spotLight );
     // scene.add( spotLightHelper );
    
-    spotLight.castShadow = true;
+    spotLight.castShadow = false;
    
     // Lower shadow map resolution to reduce shadow rendering cost
     spotLight.shadow.mapSize.width = 256;
@@ -1552,6 +1691,9 @@ import('@dimforge/rapier3d').then(RAPIER => {
     spotLight.shadow.camera.fov = 35;  // Match beam angle
     spotLight.shadow.bias = -0.0005;   // Reduce shadow acne
     spotLight.shadow.normalBias = 0.02; // Reduce peter-panning
+spotLight.shadow.mapSize.set(1024, 1024);        // was 2048 → halve it
+spotLight.shadow.radius = 4;                     // soften slightly
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     // CHUNK GRASS?
     const grass = new Grass(scene, renderer, camera)
@@ -1565,10 +1707,9 @@ import('@dimforge/rapier3d').then(RAPIER => {
     rain.setIntensity(3) // 0 = off, 1 = light, 2 = medium, 3 = heavy
     
     // Create circular end cap with flashlight texture projection
-   
-   
+  
     loader.load('/assets/models/flashlight.glb', (gltf) => {
-      const flashlight = gltf.scene.children[0]
+      flashlight = gltf.scene.children[0]
       console.log(flashlight)
       flashlight.position.z = -1.3
       flashlight.position.y = -1
@@ -1763,7 +1904,7 @@ import('@dimforge/rapier3d').then(RAPIER => {
       console.log('All enemies loaded and ready!');
   });
   
-  renderer.setAnimationLoop(() => {
+  renderer.setAnimationLoop((animate) => {
       stats.begin();
       
       // Hide loading screen only after enemies are ready
@@ -2001,6 +2142,11 @@ import('@dimforge/rapier3d').then(RAPIER => {
           newPos.y + currentEyeOffset + bobOffsetY, 
           newPos.z
       );
+      if(flashlight) {
+        spotLight.position.x = bobOffsetX
+        flashlight.position.y = bobOffsetY - 1
+      }
+    
       characterMesh.position.copy(newPos);
       characterMesh.visible = false; // Hide mesh to avoid clipping artifacts
       camera.getWorldDirection(_mobileTemp); // Reuse temp vector for direction
@@ -2148,7 +2294,17 @@ import('@dimforge/rapier3d').then(RAPIER => {
       if (waterSplash) {
         waterSplash.update(delta);
       }
-      renderer.render(scene, camera);
+
+      //Rotate page mesh 
+      
+
+      page.update();
+
+      // updateDebugRender(world);   
+    
+      // renderer.render(scene, camera);
+      postProcessing.render();
+
       stats.end();
   });
 }); // end rapier import
@@ -2180,6 +2336,32 @@ soundToggleButton.addEventListener('click', () => {
     // Update button text
     soundToggleButton.textContent = soundEnabled ? 'SOUND OFF' : 'SOUND ON';
 });
+
+function updateClock() {
+  const now = new Date();
+
+  // Time
+  let hours = now.getHours();
+  let minutes = now.getMinutes();
+
+  // Format time
+  hours = hours.toString().padStart(2, "0");
+  hours = hours % 12 || 12;
+  minutes = minutes.toString().padStart(2, "0");
+
+  document.getElementById("time").textContent = `${hours}:${minutes} ${now.getHours() >= 12 ? "PM" : "AM"}`;
+
+  // Date
+  const options = { weekday: "long", year: "numeric", month: "long", day: "numeric" };
+  const dateStr = now.toLocaleDateString("en-US", options);
+  document.getElementById("date").textContent = dateStr;
+}
+
+// Update every second
+setInterval(updateClock, 1000);
+
+// Run once immediately
+updateClock();
 
 // HMR cleanup - destroy old enemies when hot reloading
 if (import.meta.hot) {

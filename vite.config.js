@@ -8,7 +8,11 @@ export default defineConfig({
     topLevelAwait()  // Allows top-level await in modules
   ],
   optimizeDeps: {
-    exclude: ['@dimforge/rapier3d']  // Prevents Vite from pre-bundling Rapier (causes WASM issues)
+    exclude: [
+      '@dimforge/rapier3d', // Prevents Vite from pre-bundling Rapier (causes WASM issues)
+      'three/tsl' // Prevents bundling issues with TSL nodes
+    ]  
+    
   },
   assetsInclude: ['**/*.wasm']  // Ensures WASM files are treated as assets
 });

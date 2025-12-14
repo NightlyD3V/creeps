@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 export function Trees(ground, scene, world, RAPIER) {
     const loader = new GLTFLoader();
     const textureLoader = new THREE.TextureLoader();
-    const treeCount = 60; // Reduced for performance
+    const treeCount = 500; // Reduced for performance
 
     // Load PBR tree textures
     const diffuseTex = textureLoader.load('/assets/materials/trees/T_Autumn_D.png');
@@ -44,7 +44,7 @@ export function Trees(ground, scene, world, RAPIER) {
         let x, z, validPosition = false;
         while (!validPosition) {
             const angle = Math.random() * Math.PI * 2;
-            const radius = 25 + Math.random() * 125; // Wider spread for more trees
+            const radius = 25 + Math.random() * 500; // Wider spread for more trees
             x = Math.cos(angle) * radius;
             z = Math.sin(angle) * radius;
 
